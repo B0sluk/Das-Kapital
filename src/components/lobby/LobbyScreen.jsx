@@ -1,26 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { FONT_TITLE, FONT_MONO, RED } from "../../constants";
 import QRCode from "../shared/QRCode";
 import PlayerRow from "./PlayerRow";
 
-export default function LobbyScreen({ myName, onBegin }) {
-  const [joined, setJoined] = useState([{ name: myName, isMe: true }]);
-  const [allReady, setAllReady] = useState(false);
-  const SESSION_CODE = "KAP-4821";
+export default function LobbyScreen({
+  myName,
+  sessionCode,
+  isHost,
+  players,
+  onAddPlayer,
+  onRemovePlayer,
+  onBegin,
+}) {
+  const [newPlayerName, setNewPlayerName] = useState("");
 
-  useEffect(() => {
-    const delays = [1400, 2800, 4000, 5600];
-    const names = ["ALEKSANDER", "YUKI", "OMAR", "FATIMA"];
-    const timers = delays.map((d, i) =>
-      setTimeout(() => {
-        setJoined((p) => [...p, { name: names[i], isMe: false }]);
-        if (i === names.length - 1) setAllReady(true);
-      }, d),
-    );
-    return () => timers.forEach(clearTimeout);
-  }, []);
+  const lobbyUrl = `${window.location.origin}${window.location.pathname}?code=${sessionCode}`;
 
-  const canBegin = joined.length >= 2;
+  function handleAdd() {
+    if (newPlayerName.trim().length >= 2) {
+      onAddPlayer(newPlayerName.trim().toUpperCase());
+      setNewPlayerName("");
+    }
+  }
+
+  const canBegin = players.length >= 2;
 
   return (
     <div
@@ -63,7 +66,12 @@ export default function LobbyScreen({ myName, onBegin }) {
             marginTop: 3,
           }}
         >
-          LOBİ — HOST: <span style={{ color: RED }}>{myName}</span>
+          LOBİ —{" "}
+          {isHost ? (
+            <>HOST: <span style={{ color: RED }}>{myName}</span></>
+          ) : (
+            <>OYUNCU: <span style={{ color: RED }}>{myName}</span></>
+          )}
         </div>
       </div>
 
@@ -74,7 +82,7 @@ export default function LobbyScreen({ myName, onBegin }) {
           padding: "24px 20px",
           display: "flex",
           flexDirection: "column",
-          gap: 24,
+          gap: 20,
         }}
       >
         {/* Session code + QR */}
@@ -89,8 +97,8 @@ export default function LobbyScreen({ myName, onBegin }) {
             padding: "18px 20px",
           }}
         >
-          <QRCode size={110} />
-          <div>
+          <QRCode size={110} url={lobbyUrl} />
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
                 fontFamily: FONT_MONO,
@@ -110,7 +118,7 @@ export default function LobbyScreen({ myName, onBegin }) {
                 color: "#fff",
               }}
             >
-              {SESSION_CODE}
+              {sessionCode}
             </div>
             <div
               style={{
@@ -125,8 +133,82 @@ export default function LobbyScreen({ myName, onBegin }) {
               <br />
               kodu paylaş
             </div>
+            <div
+              style={{
+                fontFamily: FONT_MONO,
+                fontSize: 9,
+                color: "#666",
+                marginTop: 6,
+                wordBreak: "break-all",
+                lineHeight: 1.4,
+                userSelect: "all",
+              }}
+            >
+              {lobbyUrl}
+            </div>
           </div>
         </div>
+
+        {/* Add Player (Host only) */}
+        {isHost && (
+          <div
+            style={{
+              background: "#0d0d0d",
+              border: "1px solid #1e1e1e",
+              borderRadius: 6,
+              padding: "12px",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: FONT_MONO,
+                fontSize: 9,
+                color: "#555",
+                letterSpacing: 2,
+                marginBottom: 8,
+              }}
+            >
+              YENİ OYUNCU EKLE
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={newPlayerName}
+                onChange={(e) => setNewPlayerName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                placeholder="OYUNCU ADI (örn. YUKI)"
+                maxLength={14}
+                style={{
+                  flex: 1,
+                  background: "#111",
+                  border: "1px solid #333",
+                  borderRadius: 4,
+                  padding: "8px 12px",
+                  color: "#fff",
+                  fontFamily: FONT_TITLE,
+                  fontSize: 14,
+                  letterSpacing: 1.5,
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={handleAdd}
+                style={{
+                  padding: "8px 16px",
+                  fontFamily: FONT_TITLE,
+                  fontSize: 14,
+                  letterSpacing: 1,
+                  background: RED,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                }}
+              >
+                EKLE
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Player list */}
         <div>
@@ -139,69 +221,112 @@ export default function LobbyScreen({ myName, onBegin }) {
               marginBottom: 10,
             }}
           >
-            OYUNCULAR — {joined.length}/6 BAĞLI
+            OYUNCULAR — {players.length}/6 BAĞLI
           </div>
 
-          {joined.map((p, i) => (
-            <PlayerRow
-              key={p.name}
-              name={p.name}
-              isMe={p.isMe}
-              isHost={i === 0}
-              index={i}
-            />
-          ))}
-
-          {Array.from({ length: Math.max(0, 4 - joined.length + 1) }).map(
-            (_, i) => (
+          {players.map((p, i) => {
+            const isMe = p === "SEN" || p === myName;
+            return (
               <div
-                key={`empty-${i}`}
+                key={p}
                 style={{
                   display: "flex",
+                  justifyContent: "space-between",
                   alignItems: "center",
-                  gap: 12,
                   padding: "10px 14px",
-                  marginBottom: 6,
+                  background: "#0f0f0f",
+                  border: "1px solid #1e1e1e",
                   borderRadius: 4,
-                  border: "1px dashed #1e1e1e",
+                  marginBottom: 6,
                 }}
               >
-                <div
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: "50%",
-                    background: "#111",
-                    border: "1px dashed #2a2a2a",
-                  }}
-                />
-                <span
-                  style={{
-                    fontFamily: FONT_MONO,
-                    fontSize: 11,
-                    color: "#2a2a2a",
-                  }}
-                >
-                  Bekleniyor...
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: i === 0 ? RED : "#2ecc71",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: FONT_TITLE,
+                      fontSize: 16,
+                      letterSpacing: 2,
+                      color: isMe ? RED : "#fff",
+                    }}
+                  >
+                    {p} {isMe && "(SEN)"} {i === 0 && "👑"}
+                  </span>
+                </div>
+                {isHost && i > 0 && (
+                  <button
+                    onClick={() => onRemovePlayer(p)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#555",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontFamily: FONT_MONO,
+                    }}
+                  >
+                    ✕ KALDIR
+                  </button>
+                )}
               </div>
-            ),
-          )}
+            );
+          })}
+
+          {Array.from({ length: Math.max(0, 5 - players.length) }).map((_, i) => (
+            <div
+              key={`empty-${i}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 14px",
+                marginBottom: 6,
+                borderRadius: 4,
+                border: "1px dashed #1e1e1e",
+              }}
+            >
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: "50%",
+                  background: "#111",
+                  border: "1px dashed #2a2a2a",
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: FONT_MONO,
+                  fontSize: 11,
+                  color: "#2a2a2a",
+                }}
+              >
+                Bekleniyor...
+              </span>
+            </div>
+          ))}
         </div>
 
-        {/* Status line */}
+        {/* Status */}
         <div
           style={{
             fontFamily: FONT_MONO,
             fontSize: 10,
-            color: "#444",
+            color: "#333",
             textAlign: "center",
             letterSpacing: 1,
           }}
         >
-          {allReady
-            ? "✓ Tüm oyuncular bağlandı"
-            : `${joined.length} oyuncu bağlı · diğerleri bekleniyor`}
+          {isHost
+            ? "Host olarak lobiyi yönetiyorsun · diğerlerini ekle veya QR/kod ile davet et"
+            : `Lobiye bağlandın · host oyunu başlatana dek bekle`}
         </div>
       </div>
 
@@ -223,7 +348,9 @@ export default function LobbyScreen({ myName, onBegin }) {
             marginBottom: 8,
           }}
         >
-          Sadece host başlatabilir · en az 2 oyuncu gerekli
+          {isHost
+            ? "En az 2 oyuncu olduğunda oyunu başlatabilirsin"
+            : "Sadece host oyunu başlatabilir"}
         </div>
         <button
           onClick={canBegin ? onBegin : undefined}
@@ -237,6 +364,7 @@ export default function LobbyScreen({ myName, onBegin }) {
             color: canBegin ? "#fff" : "#333",
             border: "none",
             borderRadius: 4,
+            cursor: canBegin ? "pointer" : "default",
             transition: "background 0.3s",
           }}
         >

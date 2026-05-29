@@ -2,17 +2,84 @@ import { FONT_TITLE, FONT_MONO, RED, GOLD, RESOURCES } from "../../constants";
 
 export default function ResourcesTab({
   res,
-  muli,
+  playerMulis,
+  playerRes,
+  players,
+  activePlayer,
+  onSetActivePlayer,
   onBuyRes,
   onSellRes,
   onEarnRes,
   onSpendRes,
 }) {
+  const currentMuli = playerMulis[activePlayer] || 0;
+  const currentRes = playerRes[activePlayer] || {};
+
   return (
     <>
+      {/* Player Selector Carousel */}
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          overflowX: "auto",
+          padding: "10px 16px",
+          background: "#0d0d0d",
+          borderBottom: "1px solid #141414",
+          scrollbarWidth: "none",
+        }}
+      >
+        {players.map((p) => {
+          const isSelected = activePlayer === p;
+          return (
+            <button
+              key={p}
+              onClick={() => onSetActivePlayer(p)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 4,
+                background: isSelected ? RED : "#141414",
+                color: isSelected ? "#fff" : "#888",
+                border: `1px solid ${isSelected ? RED : "#252525"}`,
+                fontFamily: FONT_TITLE,
+                fontSize: 12,
+                letterSpacing: 1.5,
+                whiteSpace: "nowrap",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+            >
+              {p} {p === "SEN" && "(SEN)"}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active Player Stats Banner */}
+      <div
+        style={{
+          padding: "10px 16px",
+          background: "#080808",
+          borderBottom: "1px solid #141414",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: "#666", letterSpacing: 1 }}>
+          İŞLEM YAPAN: <span style={{ color: RED, fontFamily: FONT_TITLE, fontSize: 13, letterSpacing: 1.5 }}>{activePlayer}</span>
+        </span>
+        <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: GOLD }}>
+          Bakiye: <span style={{ fontWeight: 700 }}>{currentMuli.toFixed(2)}M</span>
+        </span>
+      </div>
+
+      {/* Resource List */}
       {RESOURCES.map((r) => {
         const d = res[r.id];
         const bp = +(d.base * 1.5).toFixed(2);
+        const amount = currentRes[r.id] || 0;
+
         return (
           <div
             key={r.id}
@@ -65,41 +132,41 @@ export default function ResourcesTab({
                   fontFamily: FONT_MONO,
                   fontSize: 30,
                   fontWeight: 700,
-                  color: "#fff",
+                  color: amount > 0 ? "#fff" : "#2a2a2a",
                   lineHeight: 1,
                 }}
               >
-                {d.amount}
+                {amount}
               </span>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
               {[
                 {
                   label: "AL",
-                  fn: () => onBuyRes(r.id),
+                  fn: () => onBuyRes(activePlayer, r.id),
                   bg: RED,
                   cl: "#fff",
                   br: "none",
                 },
                 {
                   label: "SAT",
-                  fn: () => onSellRes(r.id),
+                  fn: () => onSellRes(activePlayer, r.id),
                   bg: "#141414",
-                  cl: d.amount < 1 ? "#2a2a2a" : "#999",
+                  cl: amount < 1 ? "#2a2a2a" : "#999",
                   br: "1px solid #272727",
                 },
                 {
                   label: "+EARN",
-                  fn: () => onEarnRes(r.id),
+                  fn: () => onEarnRes(activePlayer, r.id),
                   bg: "#091a10",
                   cl: "#2ecc71",
                   br: "1px solid #2ecc7120",
                 },
                 {
                   label: "−SPEND",
-                  fn: () => onSpendRes(r.id),
+                  fn: () => onSpendRes(activePlayer, r.id),
                   bg: "#180c07",
-                  cl: d.amount < 1 ? "#2a1508" : "#e67e22",
+                  cl: amount < 1 ? "#2a1508" : "#e67e22",
                   br: "1px solid #e67e2220",
                 },
               ].map((btn) => (
@@ -116,6 +183,7 @@ export default function ResourcesTab({
                     color: btn.cl,
                     border: btn.br,
                     borderRadius: 3,
+                    cursor: "pointer",
                   }}
                 >
                   {btn.label}

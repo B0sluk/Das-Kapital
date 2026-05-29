@@ -2,28 +2,96 @@ import { FONT_TITLE, FONT_MONO, RED, GOLD, COMPANIES } from "../../constants";
 
 export default function CompaniesTab({
   cos,
-  otherShares,
+  playerMulis,
+  playerCos,
+  players,
+  activePlayer,
+  onSetActivePlayer,
   onBuyShare,
   onSellShare,
 }) {
+  const currentMuli = playerMulis[activePlayer] || 0;
+  const currentShares = playerCos[activePlayer] || {};
+
   function getTop3(cid) {
-    return [
-      { name: "SEN", shares: cos[cid].shares },
-      ...Object.entries(otherShares).map(([name, shares]) => ({
-        name,
-        shares: shares[cid],
-      })),
-    ]
+    return players
+      .map((p) => ({
+        name: p,
+        shares: (playerCos[p] && playerCos[p][cid]) || 0,
+      }))
       .sort((a, b) => b.shares - a.shares)
       .slice(0, 3);
   }
 
   return (
     <div style={{ padding: "8px 12px" }}>
+      {/* Player Selector Carousel */}
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          overflowX: "auto",
+          padding: "4px 4px 10px",
+          background: "#0a0a0a",
+          borderBottom: "1px solid #141414",
+          marginBottom: 12,
+          scrollbarWidth: "none",
+        }}
+      >
+        {players.map((p) => {
+          const isSelected = activePlayer === p;
+          return (
+            <button
+              key={p}
+              onClick={() => onSetActivePlayer(p)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 4,
+                background: isSelected ? RED : "#141414",
+                color: isSelected ? "#fff" : "#888",
+                border: `1px solid ${isSelected ? RED : "#252525"}`,
+                fontFamily: FONT_TITLE,
+                fontSize: 12,
+                letterSpacing: 1.5,
+                whiteSpace: "nowrap",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+            >
+              {p} {p === "SEN" && "(SEN)"}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active Player Stats Banner */}
+      <div
+        style={{
+          padding: "10px 12px",
+          background: "#080808",
+          borderRadius: 4,
+          border: "1px solid #141414",
+          marginBottom: 10,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: "#666", letterSpacing: 1 }}>
+          İŞLEM YAPAN: <span style={{ color: RED, fontFamily: FONT_TITLE, fontSize: 13, letterSpacing: 1.5 }}>{activePlayer}</span>
+        </span>
+        <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: GOLD }}>
+          Bakiye: <span style={{ fontWeight: 700 }}>{currentMuli.toFixed(2)}M</span>
+        </span>
+      </div>
+
+      {/* Company List */}
       {COMPANIES.map((c) => {
         const d = cos[c.id];
         const bp = +(d.price * 1.5).toFixed(2);
         const top3 = getTop3(c.id);
+        const sharesOwned = currentShares[c.id] || 0;
+
         return (
           <div
             key={c.id}
@@ -91,7 +159,7 @@ export default function CompaniesTab({
               }}
             >
               {[
-                { label: "HİSSE", val: d.shares, color: "#fff" },
+                { label: "HİSSE", val: sharesOwned, color: "#fff" },
                 { label: "PAZAR", val: `${d.price}M`, color: GOLD },
                 { label: "ALIŞ", val: `${bp}M`, color: "#e74c3c" },
               ].map((s) => (
@@ -167,7 +235,7 @@ export default function CompaniesTab({
                         fontFamily: FONT_TITLE,
                         fontSize: 14,
                         letterSpacing: 1.5,
-                        color: sh.name === "SEN" ? RED : "#bbb",
+                        color: sh.name === activePlayer ? RED : "#bbb",
                       }}
                     >
                       {sh.name}
@@ -187,7 +255,7 @@ export default function CompaniesTab({
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <button
-                onClick={() => onBuyShare(c.id)}
+                onClick={() => onBuyShare(activePlayer, c.id)}
                 style={{
                   flex: 1,
                   padding: "9px",
@@ -198,12 +266,13 @@ export default function CompaniesTab({
                   color: "#fff",
                   border: "none",
                   borderRadius: 3,
+                  cursor: "pointer",
                 }}
               >
                 HİSSE AL
               </button>
               <button
-                onClick={() => onSellShare(c.id)}
+                onClick={() => onSellShare(activePlayer, c.id)}
                 style={{
                   flex: 1,
                   padding: "9px",
@@ -211,9 +280,10 @@ export default function CompaniesTab({
                   fontSize: 14,
                   letterSpacing: 1.5,
                   background: "#141414",
-                  color: d.shares < 1 ? "#2a2a2a" : "#888",
-                  border: "1px solid #272727",
+                  color: sharesOwned < 1 ? "#2a2a2a" : "#888",
+                  border: sharesOwned < 1 ? "1px solid #1a1a1a" : "1px solid #272727",
                   borderRadius: 3,
+                  cursor: sharesOwned < 1 ? "default" : "pointer",
                 }}
               >
                 HİSSE SAT

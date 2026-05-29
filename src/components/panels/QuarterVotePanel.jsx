@@ -1,8 +1,9 @@
-import { FONT_TITLE, FONT_MONO, RED, ALL_PLAYERS } from "../../constants";
+import { FONT_TITLE, FONT_MONO, RED } from "../../constants";
 
 export default function QuarterVotePanel({
   quarter,
   votes,
+  players = [],
   nextFP,
   onCastVote,
   onSetNextFP,
@@ -47,8 +48,7 @@ export default function QuarterVotePanel({
             marginTop: 2,
           }}
         >
-          Tüm oyuncuların onayı gerekli — {approvedCount}/{ALL_PLAYERS.length}{" "}
-          onay
+          Tüm oyuncuların onayı gerekli — {approvedCount}/{players.length} onay
         </div>
         <div
           style={{
@@ -63,14 +63,14 @@ export default function QuarterVotePanel({
               height: "100%",
               background: "#2ecc71",
               borderRadius: 2,
-              width: `${(approvedCount / ALL_PLAYERS.length) * 100}%`,
+              width: `${(approvedCount / players.length) * 100}%`,
               transition: "width 0.3s",
             }}
           />
         </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
-        {ALL_PLAYERS.map((p) => {
+        {players.map((p) => {
           const v = votes[p];
           const isSen = p === "SEN";
           return (
@@ -97,10 +97,10 @@ export default function QuarterVotePanel({
               >
                 {p}
               </span>
-              {v === null && isSen && (
+              {v === null && (
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
-                    onClick={() => onCastVote("SEN", false)}
+                    onClick={() => onCastVote(p, false)}
                     style={{
                       padding: "6px 12px",
                       fontFamily: FONT_TITLE,
@@ -110,12 +110,13 @@ export default function QuarterVotePanel({
                       color: "#e74c3c",
                       border: "1px solid #e74c3c40",
                       borderRadius: 3,
+                      cursor: "pointer",
                     }}
                   >
                     REDDET
                   </button>
                   <button
-                    onClick={() => onCastVote("SEN", true)}
+                    onClick={() => onCastVote(p, true)}
                     style={{
                       padding: "6px 12px",
                       fontFamily: FONT_TITLE,
@@ -125,18 +126,12 @@ export default function QuarterVotePanel({
                       color: "#2ecc71",
                       border: "1px solid #2ecc7140",
                       borderRadius: 3,
+                      cursor: "pointer",
                     }}
                   >
                     ONAYLA
                   </button>
                 </div>
-              )}
-              {v === null && !isSen && (
-                <span
-                  style={{ fontSize: 11, color: "#444", fontFamily: FONT_MONO }}
-                >
-                  Bekleniyor...
-                </span>
               )}
               {v === "approved" && (
                 <span
@@ -184,7 +179,7 @@ export default function QuarterVotePanel({
             >
               ✓ HERKES ONAYLADI — SONRAKİ FIRST PLAYER SEÇ
             </div>
-            {ALL_PLAYERS.map((p) => (
+            {players.map((p) => (
               <button
                 key={p}
                 onClick={() => onSetNextFP(p)}
@@ -201,6 +196,7 @@ export default function QuarterVotePanel({
                   color: nextFP === p ? "#fff" : "#888",
                   border: nextFP === p ? "none" : "1px solid #252525",
                   borderRadius: 3,
+                  cursor: "pointer",
                 }}
               >
                 {p}
@@ -249,6 +245,7 @@ export default function QuarterVotePanel({
             color: "#666",
             border: "1px solid #272727",
             borderRadius: 4,
+            cursor: "pointer",
           }}
         >
           İPTAL
@@ -265,6 +262,7 @@ export default function QuarterVotePanel({
             color: allApproved && nextFP ? "#fff" : "#444",
             border: "none",
             borderRadius: 4,
+            cursor: allApproved && nextFP ? "pointer" : "default",
           }}
         >
           Q{quarter + 1} BAŞLAT

@@ -4,6 +4,7 @@ export default function BottomBar({
   activeCardsCount,
   onAddCard,
   onQuarterChange,
+  onPriceEditClick,
   onPlayersClick,
 }) {
   return (
@@ -12,7 +13,7 @@ export default function BottomBar({
         padding: "8px 12px",
         borderTop: "1px solid #181818",
         display: "flex",
-        gap: 8,
+        gap: 6,
         flexShrink: 0,
         background: "#0a0a0a",
       }}
@@ -23,27 +24,45 @@ export default function BottomBar({
           flex: 1,
           padding: "11px",
           fontFamily: FONT_TITLE,
-          fontSize: 14,
-          letterSpacing: 2,
+          fontSize: 13,
+          letterSpacing: 1.5,
           background: "#130a0a",
           color: RED,
           border: `1px solid ${RED}30`,
           borderRadius: 4,
+          cursor: "pointer",
         }}
       >
-        + KART EKLE
+        + KART ({activeCardsCount})
+      </button>
+      <button
+        onClick={onPriceEditClick}
+        style={{
+          padding: "11px 12px",
+          fontFamily: FONT_TITLE,
+          fontSize: 13,
+          background: "#141414",
+          color: "#aaa",
+          border: "1px solid #272727",
+          borderRadius: 4,
+          cursor: "pointer",
+        }}
+        title="Fiyatları Düzenle"
+      >
+        🏷️ FİYAT
       </button>
       <button
         onClick={onQuarterChange}
         style={{
-          padding: "11px 14px",
+          padding: "11px 12px",
           fontFamily: FONT_TITLE,
-          fontSize: 12,
+          fontSize: 13,
           letterSpacing: 1,
           background: "#141414",
-          color: "#666",
+          color: "#aaa",
           border: "1px solid #272727",
           borderRadius: 4,
+          cursor: "pointer",
         }}
       >
         Q GEÇ
@@ -55,9 +74,10 @@ export default function BottomBar({
           fontFamily: FONT_TITLE,
           fontSize: 14,
           background: "#141414",
-          color: "#666",
+          color: "#aaa",
           border: "1px solid #272727",
           borderRadius: 4,
+          cursor: "pointer",
         }}
       >
         👥

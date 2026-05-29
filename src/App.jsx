@@ -22,6 +22,10 @@ import {
 import { ts } from "./utils/helpers";
 import { initRes, initCos } from "./utils/gameHelpers";
 
+// Firebase imports
+import { initFirebase } from "./utils/firebase";
+import { ref, set, update, onValue, get } from "firebase/database";
+
 export default function App() {
   const [phase, setPhase] = useState("name");
   const [myName, setMyName] = useState("");
@@ -58,6 +62,17 @@ export default function App() {
   // Toast notification state
   const [toast, setToast] = useState(null);
 
+  // Firebase client references
+  const [db, setDb] = useState(null);
+
+  // Initialize Firebase client on startup
+  useEffect(() => {
+    const client = initFirebase();
+    if (client && client.db) {
+      setDb(client.db);
+    }
+  }, []);
+
   // Detect code from URL param
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -68,16 +83,92 @@ export default function App() {
     }
   }, []);
 
-  function notify(msg) {
-    const time = ts();
-    setNotifs((p) => [{ id: Date.now(), msg, t: time }, ...p].slice(0, 30));
-    setUnread((u) => u + 1);
-    
-    // Set toast banner
-    setToast(msg);
+  // Real-time synchronization listener
+  useEffect(() => {
+    if (!db || !sessionCode || phase === "name") return;
+
+    const lobbyRef = ref(db, `lobbies/${sessionCode}`);
+    const unsubscribe = onValue(lobbyRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      if (data.players) setPlayers(data.players);
+      if (data.status && data.status !== phase) {
+        setPhase(data.status);
+      }
+      if (data.quarter) setQuarter(data.quarter);
+      if (data.firstPlayer) setFirstPlayer(data.firstPlayer);
+      if (data.activePlayer) setActivePlayer(data.activePlayer);
+      if (data.playerMulis) setPlayerMulis(data.playerMulis);
+      if (data.playerRes) setPlayerRes(data.playerRes);
+      if (data.playerCos) setPlayerCos(data.playerCos);
+      if (data.res) setRes(data.res);
+      if (data.cos) setCos(data.cos);
+      if (data.notifs) setNotifs(data.notifs);
+      if (data.activeCards !== undefined) setActiveCards(data.activeCards || []);
+      if (data.votes) setVotes(data.votes || {});
+      if (data.nextFP !== undefined) setNextFP(data.nextFP);
+    });
+
+    return () => unsubscribe();
+  }, [db, sessionCode, phase]);
+
+  // Toast notifier sync on new notifications from Firebase
+  const [prevNotifsCount, setPrevNotifsCount] = useState(0);
+  useEffect(() => {
+    if (notifs.length > 0) {
+      if (notifs.length > prevNotifsCount) {
+        const latestMsg = notifs[0].msg;
+        if (notifs[0].id !== 0) {
+          setToast(latestMsg);
+          setUnread((u) => u + 1);
+        }
+      }
+      setPrevNotifsCount(notifs.length);
+    }
+  }, [notifs]);
+
+  // General state update mechanism
+  function updateGameData(updates) {
+    if (db && sessionCode) {
+      update(ref(db, `lobbies/${sessionCode}`), updates).catch((err) => {
+        console.error("Firebase update error:", err);
+      });
+    } else {
+      // Local updates fallback
+      if (updates.playerMulis) setPlayerMulis(updates.playerMulis);
+      if (updates.playerRes) setPlayerRes(updates.playerRes);
+      if (updates.playerCos) setPlayerCos(updates.playerCos);
+      if (updates.res) setRes(updates.res);
+      if (updates.cos) setCos(updates.cos);
+      if (updates.notifs) setNotifs(updates.notifs);
+      if (updates.activeCards !== undefined) setActiveCards(updates.activeCards);
+      if (updates.votes) setVotes(updates.votes);
+      if (updates.nextFP !== undefined) setNextFP(updates.nextFP);
+      if (updates.quarter) setQuarter(updates.quarter);
+      if (updates.firstPlayer) setFirstPlayer(updates.firstPlayer);
+      if (updates.activePlayer) setActivePlayer(updates.activePlayer);
+    }
   }
 
-  // Clear toast automatically
+  function notify(msg) {
+    const time = ts();
+    const newNotif = { id: Date.now(), msg, t: time };
+    
+    if (db && sessionCode) {
+      get(ref(db, `lobbies/${sessionCode}/notifs`)).then((snapshot) => {
+        const currentNotifs = snapshot.val() || [];
+        const updated = [newNotif, ...currentNotifs].slice(0, 30);
+        update(ref(db, `lobbies/${sessionCode}`), { notifs: updated });
+      });
+    } else {
+      setNotifs((p) => [newNotif, ...p].slice(0, 30));
+      setUnread((u) => u + 1);
+      setToast(msg);
+    }
+  }
+
+  // Clear toast automatically after 4 seconds
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => {
@@ -92,21 +183,63 @@ export default function App() {
     setSessionCode(code);
     setIsHost(hostMode);
     
-    const initialPlayers = hostMode ? [name] : ["SEN", name];
-    setPlayers(initialPlayers);
-    setActivePlayer(initialPlayers[0]);
-    setFirstPlayer(initialPlayers[0]);
-    setPhase("lobby");
+    if (db) {
+      const lobbyRef = ref(db, `lobbies/${code}`);
+      if (hostMode) {
+        // Create Lobby on Firebase
+        set(lobbyRef, {
+          host: name,
+          status: "lobby",
+          players: [name],
+          createdAt: Date.now(),
+        }).then(() => {
+          setPlayers([name]);
+          setPhase("lobby");
+        });
+      } else {
+        // Join existing Lobby
+        get(ref(db, `lobbies/${code}/players`)).then((snapshot) => {
+          const currentPlayers = snapshot.val() || [];
+          if (!currentPlayers.includes(name)) {
+            const updated = [...currentPlayers, name];
+            update(lobbyRef, { players: updated }).then(() => {
+              setPlayers(updated);
+              setPhase("lobby");
+            });
+          } else {
+            setPlayers(currentPlayers);
+            setPhase("lobby");
+          }
+        });
+      }
+    } else {
+      // Local fallback mode
+      const initialPlayers = hostMode ? [name] : ["SEN", name];
+      setPlayers(initialPlayers);
+      setActivePlayer(initialPlayers[0]);
+      setFirstPlayer(initialPlayers[0]);
+      setPhase("lobby");
+    }
   }
 
   function handleAddPlayer(name) {
     if (!players.includes(name)) {
-      setPlayers((prev) => [...prev, name]);
+      const updated = [...players, name];
+      if (db) {
+        update(ref(db, `lobbies/${sessionCode}`), { players: updated });
+      } else {
+        setPlayers(updated);
+      }
     }
   }
 
   function handleRemovePlayer(name) {
-    setPlayers((prev) => prev.filter((p) => p !== name));
+    const updated = players.filter((p) => p !== name);
+    if (db) {
+      update(ref(db, `lobbies/${sessionCode}`), { players: updated });
+    } else {
+      setPlayers(updated);
+    }
   }
 
   function startGame() {
@@ -127,13 +260,30 @@ export default function App() {
       );
     });
 
-    setPlayerMulis(initialPlayerMulis);
-    setPlayerRes(initialPlayerRes);
-    setPlayerCos(initialPlayerCos);
-    setRes(initialRes);
-    setCos(initialCos);
-    
-    setPhase("game");
+    const initialNotifs = [{ id: Date.now(), msg: "Oyun başladı. İyi şanslar, işçi.", t: ts() }];
+
+    if (db) {
+      update(ref(db, `lobbies/${sessionCode}`), {
+        status: "game",
+        res: initialRes,
+        cos: initialCos,
+        playerMulis: initialPlayerMulis,
+        playerRes: initialPlayerRes,
+        playerCos: initialPlayerCos,
+        notifs: initialNotifs,
+        quarter: 1,
+        firstPlayer: players[0],
+        activePlayer: players[0],
+      });
+    } else {
+      setPlayerMulis(initialPlayerMulis);
+      setPlayerRes(initialPlayerRes);
+      setPlayerCos(initialPlayerCos);
+      setRes(initialRes);
+      setCos(initialCos);
+      setNotifs(initialNotifs);
+      setPhase("game");
+    }
   }
 
   // Resource actions
@@ -145,23 +295,28 @@ export default function App() {
       return;
     }
     
-    setPlayerMulis((prev) => ({
-      ...prev,
-      [player]: +(prev[player] - price).toFixed(2),
-    }));
+    const updatedMulis = {
+      ...playerMulis,
+      [player]: +(muli - price).toFixed(2),
+    };
     
-    setPlayerRes((prev) => ({
-      ...prev,
+    const updatedRes = {
+      ...playerRes,
       [player]: {
-        ...prev[player],
-        [id]: (prev[player][id] || 0) + 1,
+        ...playerRes[player],
+        [id]: (playerRes[player]?.[id] || 0) + 1,
       },
-    }));
+    };
 
-    setRes((p) => {
-      const n = { ...p[id], buys: p[id].buys + 1 };
-      if (n.buys > 0 && n.buys % 3 === 0) n.base = +(n.base + 1).toFixed(1);
-      return { ...p, [id]: n };
+    const nextResData = { ...res };
+    const n = { ...res[id], buys: res[id].buys + 1 };
+    if (n.buys > 0 && n.buys % 3 === 0) n.base = +(n.base + 1).toFixed(1);
+    nextResData[id] = n;
+
+    updateGameData({
+      playerMulis: updatedMulis,
+      playerRes: updatedRes,
+      res: nextResData,
     });
     
     notify(
@@ -174,24 +329,29 @@ export default function App() {
     if (amount < 1) return;
     const price = res[id].base;
     
-    setPlayerMulis((prev) => ({
-      ...prev,
-      [player]: +(prev[player] + price).toFixed(2),
-    }));
+    const updatedMulis = {
+      ...playerMulis,
+      [player]: +(playerMulis[player] + price).toFixed(2),
+    };
     
-    setPlayerRes((prev) => ({
-      ...prev,
+    const updatedRes = {
+      ...playerRes,
       [player]: {
-        ...prev[player],
-        [id]: prev[player][id] - 1,
+        ...playerRes[player],
+        [id]: playerRes[player][id] - 1,
       },
-    }));
+    };
 
-    setRes((p) => {
-      const n = { ...p[id], sells: p[id].sells + 1 };
-      if (n.sells > 0 && n.sells % 3 === 0 && n.base > 0.5)
-        n.base = +(n.base - 1).toFixed(1);
-      return { ...p, [id]: n };
+    const nextResData = { ...res };
+    const n = { ...res[id], sells: res[id].sells + 1 };
+    if (n.sells > 0 && n.sells % 3 === 0 && n.base > 0.5)
+      n.base = +(n.base - 1).toFixed(1);
+    nextResData[id] = n;
+
+    updateGameData({
+      playerMulis: updatedMulis,
+      playerRes: updatedRes,
+      res: nextResData,
     });
     
     notify(
@@ -200,13 +360,15 @@ export default function App() {
   }
 
   function earnRes(player, id) {
-    setPlayerRes((prev) => ({
-      ...prev,
+    const updatedRes = {
+      ...playerRes,
       [player]: {
-        ...prev[player],
-        [id]: (prev[player][id] || 0) + 1,
+        ...playerRes[player],
+        [id]: (playerRes[player]?.[id] || 0) + 1,
       },
-    }));
+    };
+
+    updateGameData({ playerRes: updatedRes });
     notify(`➕ ${player} KAZANDI: 1x ${RESOURCES.find((x) => x.id === id).name}`);
   }
 
@@ -214,13 +376,15 @@ export default function App() {
     const amount = playerRes[player]?.[id] || 0;
     if (amount < 1) return;
     
-    setPlayerRes((prev) => ({
-      ...prev,
+    const updatedRes = {
+      ...playerRes,
       [player]: {
-        ...prev[player],
+        ...playerRes[player],
         [id]: amount - 1,
       },
-    }));
+    };
+
+    updateGameData({ playerRes: updatedRes });
     notify(`➖ ${player} HARCADI: 1x ${RESOURCES.find((x) => x.id === id).name}`);
   }
 
@@ -233,23 +397,28 @@ export default function App() {
       return;
     }
     
-    setPlayerMulis((prev) => ({
-      ...prev,
-      [player]: +(prev[player] - price).toFixed(2),
-    }));
+    const updatedMulis = {
+      ...playerMulis,
+      [player]: +(muli - price).toFixed(2),
+    };
     
-    setPlayerCos((prev) => ({
-      ...prev,
+    const updatedCos = {
+      ...playerCos,
       [player]: {
-        ...prev[player],
-        [id]: (prev[player][id] || 0) + 1,
+        ...playerCos[player],
+        [id]: (playerCos[player]?.[id] || 0) + 1,
       },
-    }));
+    };
 
-    setCos((p) => {
-      const n = { ...p[id], buys: p[id].buys + 1 };
-      if (n.buys > 0 && n.buys % 3 === 0) n.price = +(n.price + 1).toFixed(1);
-      return { ...p, [id]: n };
+    const nextCosData = { ...cos };
+    const n = { ...cos[id], buys: cos[id].buys + 1 };
+    if (n.buys > 0 && n.buys % 3 === 0) n.price = +(n.price + 1).toFixed(1);
+    nextCosData[id] = n;
+
+    updateGameData({
+      playerMulis: updatedMulis,
+      playerCos: updatedCos,
+      cos: nextCosData,
     });
     
     notify(
@@ -262,24 +431,29 @@ export default function App() {
     if (sharesOwned < 1) return;
     const price = cos[id].price;
     
-    setPlayerMulis((prev) => ({
-      ...prev,
-      [player]: +(prev[player] + price).toFixed(2),
-    }));
+    const updatedMulis = {
+      ...playerMulis,
+      [player]: +(playerMulis[player] + price).toFixed(2),
+    };
     
-    setPlayerCos((prev) => ({
-      ...prev,
+    const updatedCos = {
+      ...playerCos,
       [player]: {
-        ...prev[player],
-        [id]: prev[player][id] - 1,
+        ...playerCos[player],
+        [id]: playerCos[player][id] - 1,
       },
-    }));
+    };
 
-    setCos((p) => {
-      const n = { ...p[id], sells: p[id].sells + 1 };
-      if (n.sells > 0 && n.sells % 3 === 0 && n.price > 1)
-        n.price = +(n.price - 1).toFixed(1);
-      return { ...p, [id]: n };
+    const nextCosData = { ...cos };
+    const n = { ...cos[id], sells: cos[id].sells + 1 };
+    if (n.sells > 0 && n.sells % 3 === 0 && n.price > 1)
+      n.price = +(n.price - 1).toFixed(1);
+    nextCosData[id] = n;
+
+    updateGameData({
+      playerMulis: updatedMulis,
+      playerCos: updatedCos,
+      cos: nextCosData,
     });
     
     notify(
@@ -306,21 +480,19 @@ export default function App() {
     const items = Object.entries(basket).filter(([, v]) => v > 0);
     if (!items.length) return;
     
-    setPlayerRes((prev) => {
-      const activeRes = { ...prev[activePlayer] };
-      const targetRes = { ...prev[sendTo] };
-      
-      items.forEach(([id, amt]) => {
-        activeRes[id] = Math.max(0, activeRes[id] - amt);
-        targetRes[id] = (targetRes[id] || 0) + amt;
-      });
-      
-      return {
-        ...prev,
-        [activePlayer]: activeRes,
-        [sendTo]: targetRes,
-      };
+    const updatedRes = { ...playerRes };
+    const activeRes = { ...playerRes[activePlayer] };
+    const targetRes = { ...playerRes[sendTo] };
+    
+    items.forEach(([id, amt]) => {
+      activeRes[id] = Math.max(0, activeRes[id] - amt);
+      targetRes[id] = (targetRes[id] || 0) + amt;
     });
+
+    updatedRes[activePlayer] = activeRes;
+    updatedRes[sendTo] = targetRes;
+
+    updateGameData({ playerRes: updatedRes });
     
     const desc = items
       .map(([id, amt]) => `${amt}×${RESOURCES.find((r) => r.id === id).name}`)
@@ -334,70 +506,78 @@ export default function App() {
 
   // Cards
   function toggleCard(cardId) {
-    setActiveCards((p) =>
-      p.find((c) => c.id === cardId)
-        ? p.filter((c) => c.id !== cardId)
-        : [...p, { id: cardId, used: true }]
-    );
+    const updatedCards = activeCards.find((c) => c.id === cardId)
+      ? activeCards.filter((c) => c.id !== cardId)
+      : [...activeCards, { id: cardId, used: true }];
+    updateGameData({ activeCards: updatedCards });
   }
 
   function toggleUsed(cardId) {
-    setActiveCards((p) =>
-      p.map((c) => (c.id === cardId ? { ...c, used: !c.used } : c))
+    const updatedCards = activeCards.map((c) =>
+      c.id === cardId ? { ...c, used: !c.used } : c
     );
+    updateGameData({ activeCards: updatedCards });
   }
 
   // Quarter vote
   function startVote() {
-    setVotes(Object.fromEntries(players.map((p) => [p, null])));
-    setNextFP(null);
+    const initialVotes = Object.fromEntries(players.map((p) => [p, null]));
+    updateGameData({
+      votes: initialVotes,
+      nextFP: null,
+    });
     setView("quarter-vote");
   }
 
   function castVote(player, approve) {
-    setVotes((v) => {
-      const u = { ...v, [player]: approve ? "approved" : "rejected" };
-      if (player === "SEN" && approve) {
-        players.forEach((mp) => {
-          if (mp !== "SEN") u[mp] = "approved";
-        });
-      }
-      return u;
-    });
+    const updatedVotes = {
+      ...votes,
+      [player]: approve ? "approved" : "rejected",
+    };
+    // Host auto-approves others helper for mock players if any
+    if (player === "SEN" && approve) {
+      players.forEach((mp) => {
+        if (mp !== "SEN") updatedVotes[mp] = "approved";
+      });
+    }
+    updateGameData({ votes: updatedVotes });
   }
 
   function finalizeQuarter() {
     if (!nextFP) return;
-    setQuarter((q) => q + 1);
-    setFirstPlayer(nextFP);
-    setActiveCards([]);
-    notify(`📢 Q${quarter + 1} başladı. First Player: ${nextFP}`);
+    const nextQ = quarter + 1;
+    updateGameData({
+      quarter: nextQ,
+      firstPlayer: nextFP,
+      activeCards: [],
+      votes: {},
+      nextFP: null,
+      status: "game",
+    });
+    notify(`📢 Q${nextQ} başladı. First Player: ${nextFP}`);
     setView("main");
     setTab("res");
   }
 
   // Price proposer / editor
   function handleProposePrices(proposedRes, proposedCos) {
-    // Update global resource base prices
-    setRes((prev) => {
-      const next = { ...prev };
-      Object.entries(proposedRes).forEach(([id, basePrice]) => {
-        if (next[id]) {
-          next[id] = { ...next[id], base: basePrice };
-        }
-      });
-      return next;
+    const nextResData = { ...res };
+    Object.entries(proposedRes).forEach(([id, basePrice]) => {
+      if (nextResData[id]) {
+        nextResData[id] = { ...nextResData[id], base: basePrice };
+      }
     });
 
-    // Update global company share prices
-    setCos((prev) => {
-      const next = { ...prev };
-      Object.entries(proposedCos).forEach(([id, sharePrice]) => {
-        if (next[id]) {
-          next[id] = { ...next[id], price: sharePrice };
-        }
-      });
-      return next;
+    const nextCosData = { ...cos };
+    Object.entries(proposedCos).forEach(([id, sharePrice]) => {
+      if (nextCosData[id]) {
+        nextCosData[id] = { ...nextCosData[id], price: sharePrice };
+      }
+    });
+
+    updateGameData({
+      res: nextResData,
+      cos: nextCosData,
     });
 
     notify("🔔 FİYAT GÜNCELLEMESİ: Yeni piyasa fiyatları onaylandı!");
@@ -606,7 +786,7 @@ export default function App() {
             <PlayersPanel
               onClose={() => setView("main")}
               onSend={startSend}
-              mockPlayers={players.filter((p) => p !== "SEN")}
+              mockPlayers={players.filter((p) => p !== activePlayer)}
             />
           </div>
         )}

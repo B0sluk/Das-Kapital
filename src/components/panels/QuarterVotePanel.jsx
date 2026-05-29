@@ -1,0 +1,275 @@
+import { FONT_TITLE, FONT_MONO, RED, ALL_PLAYERS } from "../../constants";
+
+export default function QuarterVotePanel({
+  quarter,
+  votes,
+  nextFP,
+  onCastVote,
+  onSetNextFP,
+  onFinalizeQuarter,
+  onCancel,
+}) {
+  const allVoted =
+    Object.keys(votes).length > 0 &&
+    Object.values(votes).every((v) => v !== null);
+  const allApproved =
+    allVoted && Object.values(votes).every((v) => v === "approved");
+  const anyRejected = Object.values(votes).some((v) => v === "rejected");
+  const approvedCount = Object.values(votes).filter(
+    (v) => v === "approved",
+  ).length;
+
+  return (
+    <>
+      <div
+        style={{
+          padding: "14px 16px",
+          borderBottom: "1px solid #181818",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: FONT_TITLE,
+            fontSize: 20,
+            letterSpacing: 3,
+            color: RED,
+          }}
+        >
+          Q{quarter} → Q{quarter + 1}
+        </div>
+        <div
+          style={{
+            fontSize: 10,
+            color: "#666",
+            fontFamily: FONT_MONO,
+            letterSpacing: 1,
+            marginTop: 2,
+          }}
+        >
+          Tüm oyuncuların onayı gerekli — {approvedCount}/{ALL_PLAYERS.length}{" "}
+          onay
+        </div>
+        <div
+          style={{
+            marginTop: 8,
+            height: 2,
+            background: "#1a1a1a",
+            borderRadius: 2,
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              background: "#2ecc71",
+              borderRadius: 2,
+              width: `${(approvedCount / ALL_PLAYERS.length) * 100}%`,
+              transition: "width 0.3s",
+            }}
+          />
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
+        {ALL_PLAYERS.map((p) => {
+          const v = votes[p];
+          const isSen = p === "SEN";
+          return (
+            <div
+              key={p}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "12px 14px",
+                background: "#0f0f0f",
+                border: `1px solid ${v === "approved" ? "#2ecc7130" : v === "rejected" ? "#e74c3c30" : "#1e1e1e"}`,
+                borderRadius: 4,
+                marginBottom: 8,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: FONT_TITLE,
+                  fontSize: 16,
+                  letterSpacing: 2,
+                  color: isSen ? RED : "#ddd",
+                }}
+              >
+                {p}
+              </span>
+              {v === null && isSen && (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => onCastVote("SEN", false)}
+                    style={{
+                      padding: "6px 12px",
+                      fontFamily: FONT_TITLE,
+                      fontSize: 12,
+                      letterSpacing: 1,
+                      background: "#1a0808",
+                      color: "#e74c3c",
+                      border: "1px solid #e74c3c40",
+                      borderRadius: 3,
+                    }}
+                  >
+                    REDDET
+                  </button>
+                  <button
+                    onClick={() => onCastVote("SEN", true)}
+                    style={{
+                      padding: "6px 12px",
+                      fontFamily: FONT_TITLE,
+                      fontSize: 12,
+                      letterSpacing: 1,
+                      background: "#0a2016",
+                      color: "#2ecc71",
+                      border: "1px solid #2ecc7140",
+                      borderRadius: 3,
+                    }}
+                  >
+                    ONAYLA
+                  </button>
+                </div>
+              )}
+              {v === null && !isSen && (
+                <span
+                  style={{ fontSize: 11, color: "#444", fontFamily: FONT_MONO }}
+                >
+                  Bekleniyor...
+                </span>
+              )}
+              {v === "approved" && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "#2ecc71",
+                    fontFamily: FONT_MONO,
+                  }}
+                >
+                  ✓ ONAYLADI
+                </span>
+              )}
+              {v === "rejected" && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "#e74c3c",
+                    fontFamily: FONT_MONO,
+                  }}
+                >
+                  ✕ REDDETTİ
+                </span>
+              )}
+            </div>
+          );
+        })}
+        {allApproved && (
+          <div
+            style={{
+              marginTop: 16,
+              background: "#0a150a",
+              border: "1px solid #2ecc7130",
+              borderRadius: 6,
+              padding: "14px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9,
+                color: "#2ecc71",
+                fontFamily: FONT_MONO,
+                letterSpacing: 2,
+                marginBottom: 12,
+              }}
+            >
+              ✓ HERKES ONAYLADI — SONRAKİ FIRST PLAYER SEÇ
+            </div>
+            {ALL_PLAYERS.map((p) => (
+              <button
+                key={p}
+                onClick={() => onSetNextFP(p)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginBottom: 6,
+                  padding: "10px 14px",
+                  textAlign: "left",
+                  fontFamily: FONT_TITLE,
+                  fontSize: 15,
+                  letterSpacing: 2,
+                  background: nextFP === p ? RED : "#141414",
+                  color: nextFP === p ? "#fff" : "#888",
+                  border: nextFP === p ? "none" : "1px solid #252525",
+                  borderRadius: 3,
+                }}
+              >
+                {p}
+                {nextFP === p && " ←"}
+              </button>
+            ))}
+          </div>
+        )}
+        {anyRejected && !allApproved && (
+          <div
+            style={{
+              marginTop: 16,
+              background: "#150808",
+              border: "1px solid #e74c3c40",
+              borderRadius: 6,
+              padding: "14px",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{ fontSize: 12, color: "#e74c3c", fontFamily: FONT_MONO }}
+            >
+              Quarter geçişi reddedildi. Oyuna devam edin.
+            </div>
+          </div>
+        )}
+      </div>
+      <div
+        style={{
+          padding: "10px 14px",
+          display: "flex",
+          gap: 8,
+          flexShrink: 0,
+          borderTop: "1px solid #181818",
+          background: "#0a0a0a",
+        }}
+      >
+        <button
+          onClick={onCancel}
+          style={{
+            padding: "10px 14px",
+            fontFamily: FONT_TITLE,
+            fontSize: 13,
+            letterSpacing: 1,
+            background: "#141414",
+            color: "#666",
+            border: "1px solid #272727",
+            borderRadius: 4,
+          }}
+        >
+          İPTAL
+        </button>
+        <button
+          onClick={onFinalizeQuarter}
+          style={{
+            flex: 1,
+            padding: "10px",
+            fontFamily: FONT_TITLE,
+            fontSize: 16,
+            letterSpacing: 2,
+            background: allApproved && nextFP ? RED : "#181818",
+            color: allApproved && nextFP ? "#fff" : "#444",
+            border: "none",
+            borderRadius: 4,
+          }}
+        >
+          Q{quarter + 1} BAŞLAT
+        </button>
+      </div>
+    </>
+  );
+}

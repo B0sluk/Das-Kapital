@@ -177,24 +177,26 @@ export default function NameScreen({ onJoin }) {
         >
           {isFirebaseConnected ? "● ONLINE (FIREBASE)" : "● OFFLINE (YEREL)"}
         </span>
-        <button
-          onClick={() => setShowSettings(true)}
-          style={{
-            background: "#141414",
-            border: "1px solid #2a2a2a",
-            borderRadius: 4,
-            width: 28,
-            height: 28,
-            cursor: "pointer",
-            color: "#888",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          title="Firebase Ayarları"
-        >
-          ⚙️
-        </button>
+        {!(import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_DATABASE_URL) && (
+          <button
+            onClick={() => setShowSettings(true)}
+            style={{
+              background: "#141414",
+              border: "1px solid #2a2a2a",
+              borderRadius: 4,
+              width: 28,
+              height: 28,
+              cursor: "pointer",
+              color: "#888",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            title="Firebase Ayarları"
+          >
+            ⚙️
+          </button>
+        )}
       </div>
 
       <div style={{ width: "100%", maxWidth: 320 }}>

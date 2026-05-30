@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FONT_TITLE, FONT_MONO, RED } from "../../constants";
+import { validatePlayerName } from "../../utils/validation";
 import QRCode from "../shared/QRCode";
 import PlayerRow from "./PlayerRow";
 
@@ -17,10 +18,13 @@ export default function LobbyScreen({
   const lobbyUrl = `${window.location.origin}${window.location.pathname}?code=${sessionCode}`;
 
   function handleAdd() {
-    if (newPlayerName.trim().length >= 2) {
-      onAddPlayer(newPlayerName.trim().toUpperCase());
-      setNewPlayerName("");
+    const validation = validatePlayerName(newPlayerName);
+    if (!validation.valid) {
+      alert(validation.error);
+      return;
     }
+    onAddPlayer(validation.value);
+    setNewPlayerName("");
   }
 
   const canBegin = players.length >= 2;
@@ -68,9 +72,13 @@ export default function LobbyScreen({
         >
           LOBİ —{" "}
           {isHost ? (
-            <>HOST: <span style={{ color: RED }}>{myName}</span></>
+            <>
+              HOST: <span style={{ color: RED }}>{myName}</span>
+            </>
           ) : (
-            <>OYUNCU: <span style={{ color: RED }}>{myName}</span></>
+            <>
+              OYUNCU: <span style={{ color: RED }}>{myName}</span>
+            </>
           )}
         </div>
       </div>
@@ -279,39 +287,41 @@ export default function LobbyScreen({
             );
           })}
 
-          {Array.from({ length: Math.max(0, 5 - players.length) }).map((_, i) => (
-            <div
-              key={`empty-${i}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "10px 14px",
-                marginBottom: 6,
-                borderRadius: 4,
-                border: "1px dashed #1e1e1e",
-              }}
-            >
+          {Array.from({ length: Math.max(0, 5 - players.length) }).map(
+            (_, i) => (
               <div
+                key={`empty-${i}`}
                 style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: "50%",
-                  background: "#111",
-                  border: "1px dashed #2a2a2a",
-                }}
-              />
-              <span
-                style={{
-                  fontFamily: FONT_MONO,
-                  fontSize: 11,
-                  color: "#2a2a2a",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 14px",
+                  marginBottom: 6,
+                  borderRadius: 4,
+                  border: "1px dashed #1e1e1e",
                 }}
               >
-                Bekleniyor...
-              </span>
-            </div>
-          ))}
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    background: "#111",
+                    border: "1px dashed #2a2a2a",
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: FONT_MONO,
+                    fontSize: 11,
+                    color: "#2a2a2a",
+                  }}
+                >
+                  Bekleniyor...
+                </span>
+              </div>
+            ),
+          )}
         </div>
 
         {/* Status */}

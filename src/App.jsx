@@ -12,15 +12,10 @@ import PlayersPanel from "./components/panels/PlayersPanel";
 import SendPanel from "./components/panels/SendPanel";
 import QuarterVotePanel from "./components/panels/QuarterVotePanel";
 import PriceEditPanel from "./components/panels/PriceEditPanel";
-import {
-  RESOURCES,
-  COMPANIES,
-  FONT_TITLE,
-  FONT_MONO,
-  RED,
-} from "./constants";
+import { RESOURCES, COMPANIES, FONT_TITLE, FONT_MONO, RED } from "./constants";
 import { ts } from "./utils/helpers";
 import { initRes, initCos } from "./utils/gameHelpers";
+import { validateAmount, createSafeNotif } from "./utils/validation";
 
 // Firebase imports
 import { initFirebase } from "./utils/firebase";
@@ -61,6 +56,10 @@ export default function App() {
 
   // Toast notification state
   const [toast, setToast] = useState(null);
+
+  // Rate limiting - prevent spam actions
+  const [lastActionTime, setLastActionTime] = useState(0);
+  const RATE_LIMIT_MS = 300; // 300ms between actions
 
   // Firebase client references
   const [db, setDb] = useState(null);
@@ -105,7 +104,8 @@ export default function App() {
       if (data.res) setRes(data.res);
       if (data.cos) setCos(data.cos);
       if (data.notifs) setNotifs(data.notifs);
-      if (data.activeCards !== undefined) setActiveCards(data.activeCards || []);
+      if (data.activeCards !== undefined)
+        setActiveCards(data.activeCards || []);
       if (data.votes) setVotes(data.votes || {});
       if (data.nextFP !== undefined) setNextFP(data.nextFP);
     });
@@ -142,7 +142,8 @@ export default function App() {
       if (updates.res) setRes(updates.res);
       if (updates.cos) setCos(updates.cos);
       if (updates.notifs) setNotifs(updates.notifs);
-      if (updates.activeCards !== undefined) setActiveCards(updates.activeCards);
+      if (updates.activeCards !== undefined)
+        setActiveCards(updates.activeCards);
       if (updates.votes) setVotes(updates.votes);
       if (updates.nextFP !== undefined) setNextFP(updates.nextFP);
       if (updates.quarter) setQuarter(updates.quarter);
@@ -152,9 +153,17 @@ export default function App() {
   }
 
   function notify(msg) {
+    // XSS Protection - sanitize message
+    if (!msg || typeof msg !== "string") return;
+
     const time = ts();
-    const newNotif = { id: Date.now(), msg, t: time };
-    
+    // Remove any HTML/script attempts from message
+    const div = document.createElement("div");
+    div.textContent = msg;
+    const safeMsgHtml = div.innerHTML;
+
+    const newNotif = { id: Date.now(), msg: safeMsgHtml, t: time };
+
     if (db && sessionCode) {
       get(ref(db, `lobbies/${sessionCode}/notifs`)).then((snapshot) => {
         const currentNotifs = snapshot.val() || [];
@@ -182,7 +191,7 @@ export default function App() {
     setMyName(name);
     setSessionCode(code);
     setIsHost(hostMode);
-    
+
     if (db) {
       const lobbyRef = ref(db, `lobbies/${code}`);
       if (hostMode) {
@@ -225,10 +234,9 @@ export default function App() {
   function handleAddPlayer(name) {
     if (!players.includes(name)) {
       const updated = [...players, name];
+      setPlayers(updated);
       if (db) {
         update(ref(db, `lobbies/${sessionCode}`), { players: updated });
-      } else {
-        setPlayers(updated);
       }
     }
   }
@@ -253,14 +261,14 @@ export default function App() {
     players.forEach((p) => {
       initialPlayerMulis[p] = 25.0;
       initialPlayerRes[p] = Object.fromEntries(
-        RESOURCES.map((r) => [r.id, Math.floor(Math.random() * 4) + 2])
+        RESOURCES.map((r) => [r.id, Math.floor(Math.random() * 4) + 2]),
       );
-      initialPlayerCos[p] = Object.fromEntries(
-        COMPANIES.map((c) => [c.id, 0])
-      );
+      initialPlayerCos[p] = Object.fromEntries(COMPANIES.map((c) => [c.id, 0]));
     });
 
-    const initialNotifs = [{ id: Date.now(), msg: "Oyun başladı. İyi şanslar, işçi.", t: ts() }];
+    const initialNotifs = [
+      { id: Date.now(), msg: "Oyun başladı. İyi şanslar, işçi.", t: ts() },
+    ];
 
     if (db) {
       update(ref(db, `lobbies/${sessionCode}`), {
@@ -288,18 +296,30 @@ export default function App() {
 
   // Resource actions
   function buyRes(player, id) {
+    if (myName !== player) {
+      notify("Sadece kendini için aksiyon alabilirsin!");
+      return;
+    }
+
+    // Rate limiting
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const price = +(res[id].base * 1.5).toFixed(2);
     const muli = playerMulis[player] || 0;
     if (muli < price) {
       notify(`⚠ ${player}: Yetersiz Muli`);
       return;
     }
-    
+
     const updatedMulis = {
       ...playerMulis,
       [player]: +(muli - price).toFixed(2),
     };
-    
+
     const updatedRes = {
       ...playerRes,
       [player]: {
@@ -318,22 +338,33 @@ export default function App() {
       playerRes: updatedRes,
       res: nextResData,
     });
-    
+
     notify(
-      `🛒 ${player} ALDI: ${RESOURCES.find((x) => x.id === id).name} ×1 (−${price}M)`
+      `🛒 ${player} ALDI: ${RESOURCES.find((x) => x.id === id).name} ×1 (−${price}M)`,
     );
   }
 
   function sellRes(player, id) {
+    if (myName !== player) {
+      notify("Sadece kendini için aksiyon alabilirsin!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const amount = playerRes[player]?.[id] || 0;
     if (amount < 1) return;
     const price = res[id].base;
-    
+
     const updatedMulis = {
       ...playerMulis,
       [player]: +(playerMulis[player] + price).toFixed(2),
     };
-    
+
     const updatedRes = {
       ...playerRes,
       [player]: {
@@ -353,13 +384,24 @@ export default function App() {
       playerRes: updatedRes,
       res: nextResData,
     });
-    
+
     notify(
-      `💰 ${player} SATTI: ${RESOURCES.find((x) => x.id === id).name} ×1 (+${price.toFixed(1)}M)`
+      `💰 ${player} SATTI: ${RESOURCES.find((x) => x.id === id).name} ×1 (+${price.toFixed(1)}M)`,
     );
   }
 
   function earnRes(player, id) {
+    if (myName !== player) {
+      notify("Sadece kendini için aksiyon alabilirsin!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const updatedRes = {
       ...playerRes,
       [player]: {
@@ -369,13 +411,26 @@ export default function App() {
     };
 
     updateGameData({ playerRes: updatedRes });
-    notify(`➕ ${player} KAZANDI: 1x ${RESOURCES.find((x) => x.id === id).name}`);
+    notify(
+      `➕ ${player} KAZANDI: 1x ${RESOURCES.find((x) => x.id === id).name}`,
+    );
   }
 
   function spendRes(player, id) {
+    if (myName !== player) {
+      notify("Sadece kendini için aksiyon alabilirsin!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const amount = playerRes[player]?.[id] || 0;
     if (amount < 1) return;
-    
+
     const updatedRes = {
       ...playerRes,
       [player]: {
@@ -385,23 +440,36 @@ export default function App() {
     };
 
     updateGameData({ playerRes: updatedRes });
-    notify(`➖ ${player} HARCADI: 1x ${RESOURCES.find((x) => x.id === id).name}`);
+    notify(
+      `➖ ${player} HARCADI: 1x ${RESOURCES.find((x) => x.id === id).name}`,
+    );
   }
 
   // Company actions
   function buyShare(player, id) {
+    if (myName !== player) {
+      notify("Sadece kendini için aksiyon alabilirsin!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const price = +(cos[id].price * 1.5).toFixed(2);
     const muli = playerMulis[player] || 0;
     if (muli < price) {
       notify(`⚠ ${player}: Yetersiz Muli`);
       return;
     }
-    
+
     const updatedMulis = {
       ...playerMulis,
       [player]: +(muli - price).toFixed(2),
     };
-    
+
     const updatedCos = {
       ...playerCos,
       [player]: {
@@ -420,22 +488,33 @@ export default function App() {
       playerCos: updatedCos,
       cos: nextCosData,
     });
-    
+
     notify(
-      `📈 ${player} HİSSE ALDI: ${COMPANIES.find((x) => x.id === id).code} ×1 (−${price}M)`
+      `📈 ${player} HİSSE ALDI: ${COMPANIES.find((x) => x.id === id).code} ×1 (−${price}M)`,
     );
   }
 
   function sellShare(player, id) {
+    if (myName !== player) {
+      notify("Sadece kendini için aksiyon alabilirsin!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const sharesOwned = playerCos[player]?.[id] || 0;
     if (sharesOwned < 1) return;
     const price = cos[id].price;
-    
+
     const updatedMulis = {
       ...playerMulis,
       [player]: +(playerMulis[player] + price).toFixed(2),
     };
-    
+
     const updatedCos = {
       ...playerCos,
       [player]: {
@@ -455,14 +534,25 @@ export default function App() {
       playerCos: updatedCos,
       cos: nextCosData,
     });
-    
+
     notify(
-      `📉 ${player} HİSSE SATTI: ${COMPANIES.find((x) => x.id === id).code} ×1 (+${price.toFixed(1)}M)`
+      `📉 ${player} HİSSE SATTI: ${COMPANIES.find((x) => x.id === id).code} ×1 (+${price.toFixed(1)}M)`,
     );
   }
 
   // Trade
   function startSend(player) {
+    if (myName !== activePlayer) {
+      notify("Sadece kendini için aksiyon alabilirsin!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     setSendTo(player);
     setBasket({});
     setView("send");
@@ -477,13 +567,19 @@ export default function App() {
   }
 
   function executeSend() {
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const items = Object.entries(basket).filter(([, v]) => v > 0);
     if (!items.length) return;
-    
+
     const updatedRes = { ...playerRes };
     const activeRes = { ...playerRes[activePlayer] };
     const targetRes = { ...playerRes[sendTo] };
-    
+
     items.forEach(([id, amt]) => {
       activeRes[id] = Math.max(0, activeRes[id] - amt);
       targetRes[id] = (targetRes[id] || 0) + amt;
@@ -493,11 +589,11 @@ export default function App() {
     updatedRes[sendTo] = targetRes;
 
     updateGameData({ playerRes: updatedRes });
-    
+
     const desc = items
       .map(([id, amt]) => `${amt}×${RESOURCES.find((r) => r.id === id).name}`)
       .join(", ");
-      
+
     notify(`💸 TRANSFER: ${activePlayer} → ${sendTo}: ${desc}`);
     setView("main");
     setSendTo(null);
@@ -506,6 +602,17 @@ export default function App() {
 
   // Cards
   function toggleCard(cardId) {
+    if (myName !== activePlayer) {
+      notify("Sıran değil!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const updatedCards = activeCards.find((c) => c.id === cardId)
       ? activeCards.filter((c) => c.id !== cardId)
       : [...activeCards, { id: cardId, used: true }];
@@ -513,14 +620,36 @@ export default function App() {
   }
 
   function toggleUsed(cardId) {
+    if (myName !== activePlayer) {
+      notify("Sıran değil!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const updatedCards = activeCards.map((c) =>
-      c.id === cardId ? { ...c, used: !c.used } : c
+      c.id === cardId ? { ...c, used: !c.used } : c,
     );
     updateGameData({ activeCards: updatedCards });
   }
 
   // Quarter vote
   function startVote() {
+    if (myName !== activePlayer) {
+      notify("Sıran değil!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const initialVotes = Object.fromEntries(players.map((p) => [p, null]));
     updateGameData({
       votes: initialVotes,
@@ -530,6 +659,17 @@ export default function App() {
   }
 
   function castVote(player, approve) {
+    if (myName !== player) {
+      notify("Sadece kendinin oyunu verebilirsin!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const updatedVotes = {
       ...votes,
       [player]: approve ? "approved" : "rejected",
@@ -544,6 +684,17 @@ export default function App() {
   }
 
   function finalizeQuarter() {
+    if (myName !== activePlayer) {
+      notify("Sıran değil!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     if (!nextFP) return;
     const nextQ = quarter + 1;
     updateGameData({
@@ -561,6 +712,17 @@ export default function App() {
 
   // Price proposer / editor
   function handleProposePrices(proposedRes, proposedCos) {
+    if (myName !== activePlayer) {
+      notify("Sıran değil!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
     const nextResData = { ...res };
     Object.entries(proposedRes).forEach(([id, basePrice]) => {
       if (nextResData[id]) {
@@ -615,7 +777,7 @@ export default function App() {
   return (
     <>
       <GlobalStyle />
-      
+
       {/* Premium Slide-Down Toast Banner */}
       {toast && (
         <div
@@ -633,7 +795,8 @@ export default function App() {
             fontSize: 12,
             fontFamily: FONT_MONO,
             boxShadow: `0 0 20px ${RED}33`,
-            animation: "toastSlide 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards",
+            animation:
+              "toastSlide 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards",
             maxWidth: "90%",
             width: 320,
             textAlign: "center",

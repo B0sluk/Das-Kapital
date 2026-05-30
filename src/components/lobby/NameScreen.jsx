@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { FONT_TITLE, FONT_MONO, RED } from "../../constants";
+import { validatePlayerName } from "../../utils/validation";
 
 function generateCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "KAP-";
-  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 4; i++)
+    code += chars[Math.floor(Math.random() * chars.length)];
   return code;
 }
 
@@ -58,7 +60,14 @@ export default function NameScreen({ onJoin }) {
 
   function handleJoin() {
     if (!canSubmit) return;
-    const n = name.trim().toUpperCase();
+
+    const validation = validatePlayerName(name);
+    if (!validation.valid) {
+      alert(validation.error);
+      return;
+    }
+
+    const n = validation.value;
     if (mode === "create") {
       onJoin(n, generatedCode, true);
     } else {
@@ -75,10 +84,12 @@ export default function NameScreen({ onJoin }) {
       } catch (e) {
         // If not JSON, try to extract keys using regex (helpful for JS SDK snippets)
         const extractKey = (key) => {
-          const match = firebaseConfigText.match(new RegExp(`${key}:\\s*["']([^"']+)["']`));
+          const match = firebaseConfigText.match(
+            new RegExp(`${key}:\\s*["']([^"']+)["']`),
+          );
           return match ? match[1] : null;
         };
-        
+
         parsed = {
           apiKey: extractKey("apiKey"),
           authDomain: extractKey("authDomain"),
@@ -91,11 +102,16 @@ export default function NameScreen({ onJoin }) {
       }
 
       if (parsed && parsed.databaseURL && parsed.apiKey) {
-        localStorage.setItem("das_kapital_firebase_config", JSON.stringify(parsed));
+        localStorage.setItem(
+          "das_kapital_firebase_config",
+          JSON.stringify(parsed),
+        );
         alert("Firebase ayarları kaydedildi! Sayfa yenileniyor...");
         window.location.reload();
       } else {
-        alert("Geçersiz Firebase Config. apiKey ve databaseURL alanları zorunludur.");
+        alert(
+          "Geçersiz Firebase Config. apiKey ve databaseURL alanları zorunludur.",
+        );
       }
     } catch (err) {
       alert("Ayar kaydedilirken hata oluştu. Lütfen formatı kontrol edin.");
@@ -177,7 +193,10 @@ export default function NameScreen({ onJoin }) {
         >
           {isFirebaseConnected ? "● ONLINE (FIREBASE)" : "● OFFLINE (YEREL)"}
         </span>
-        {!(import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_DATABASE_URL) && (
+        {!(
+          import.meta.env.VITE_FIREBASE_API_KEY &&
+          import.meta.env.VITE_FIREBASE_DATABASE_URL
+        ) && (
           <button
             onClick={() => setShowSettings(true)}
             style={{
@@ -242,10 +261,16 @@ export default function NameScreen({ onJoin }) {
             marginBottom: 20,
           }}
         >
-          <button style={tabStyle(mode === "create")} onClick={() => setMode("create")}>
+          <button
+            style={tabStyle(mode === "create")}
+            onClick={() => setMode("create")}
+          >
             YENİ LOBİ
           </button>
-          <button style={tabStyle(mode === "join")} onClick={() => setMode("join")}>
+          <button
+            style={tabStyle(mode === "join")}
+            onClick={() => setMode("join")}
+          >
             KODA GİR
           </button>
         </div>
@@ -314,7 +339,9 @@ export default function NameScreen({ onJoin }) {
             }}
           >
             Lobi kodu:{" "}
-            <span style={{ color: "#666", letterSpacing: 2 }}>{generatedCode}</span>
+            <span style={{ color: "#666", letterSpacing: 2 }}>
+              {generatedCode}
+            </span>
           </div>
         )}
 
@@ -402,7 +429,9 @@ export default function NameScreen({ onJoin }) {
                 marginBottom: 16,
               }}
             >
-              Online oynamak için Firebase Realtime Database config kodunuzu buraya yapıştırın (JSON veya JS nesnesi formatında). databaseURL alanı dolu olmalıdır.
+              Online oynamak için Firebase Realtime Database config kodunuzu
+              buraya yapıştırın (JSON veya JS nesnesi formatında). databaseURL
+              alanı dolu olmalıdır.
             </div>
 
             <textarea

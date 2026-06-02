@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import GlobalStyle from "./components/GlobalStyle";
 import NameScreen from "./components/lobby/NameScreen";
 import LobbyScreen from "./components/lobby/LobbyScreen";
@@ -34,7 +34,9 @@ export default function App() {
 
   // Dynamic players list
   const [players, setPlayers] = useState(["SEN"]);
-  const [activePlayer, setActivePlayer] = useState("SEN");
+  const [activePlayer, setActivePlayer] = useState("SEN"); // UI: hangi oyuncunun verisi gösteriliyor
+  const [turnPlayer, setTurnPlayer] = useState("SEN");     // Sıra kimin (Firebase'den)
+  const firebaseTurnPlayerRef = useRef(null);
 
   // Game state
   const [playerMulis, setPlayerMulis] = useState({});
@@ -67,6 +69,10 @@ export default function App() {
 
   // Toast notification state
   const [toast, setToast] = useState(null);
+
+  // Price vote state (Firebase-synced)
+  const [priceVote, setPriceVote] = useState(null);
+  const [activeVote, setActiveVote] = useState(null);
 
   // Rate limiting - prevent spam actions
   const [lastActionTime, setLastActionTime] = useState(0);
@@ -108,10 +114,9 @@ export default function App() {
       }
       if (data.quarter) setQuarter(data.quarter);
       if (data.firstPlayer) setFirstPlayer(data.firstPlayer);
-      // Only update activePlayer during phase/quarter transitions, not on every change
-      // This prevents the view from jumping when other players make trades
-      if (data.status !== phase || data.quarter !== quarter) {
-        if (data.activePlayer) setActivePlayer(data.activePlayer);
+      if (data.activePlayer && data.activePlayer !== firebaseTurnPlayerRef.current) {
+        firebaseTurnPlayerRef.current = data.activePlayer;
+        setTurnPlayer(data.activePlayer);
       }
       if (data.playerMulis) setPlayerMulis(data.playerMulis);
       if (data.playerRes) setPlayerRes(data.playerRes);
@@ -123,6 +128,22 @@ export default function App() {
         setActiveCards(data.activeCards || []);
       if (data.votes) setVotes(data.votes || {});
       if (data.nextFP !== undefined) setNextFP(data.nextFP);
+      if (data.priceVote !== undefined) {
+        const newPV = data.priceVote || null;
+        setPriceVote(newPV);
+        if (newPV?.active) {
+          setView((v) => (v === "price-edit" ? v : "price-edit"));
+        }
+      }
+      const incomingVote = data.activeVote || null;
+      setActiveVote((prev) => {
+        if (incomingVote !== prev) {
+          if (incomingVote === "quarter") {
+            setView((v) => (v === "quarter-vote" ? v : "quarter-vote"));
+          }
+        }
+        return incomingVote;
+      });
     });
 
     return () => unsubscribe();
@@ -161,9 +182,10 @@ export default function App() {
         setActiveCards(updates.activeCards);
       if (updates.votes) setVotes(updates.votes);
       if (updates.nextFP !== undefined) setNextFP(updates.nextFP);
+      if (updates.priceVote !== undefined) setPriceVote(updates.priceVote || null);
       if (updates.quarter) setQuarter(updates.quarter);
       if (updates.firstPlayer) setFirstPlayer(updates.firstPlayer);
-      if (updates.activePlayer) setActivePlayer(updates.activePlayer);
+      if (updates.activePlayer) setTurnPlayer(updates.activePlayer);
     }
   }
 
@@ -222,8 +244,10 @@ export default function App() {
         });
       } else {
         // Join existing Lobby
-        get(ref(db, `lobbies/${code}/players`)).then((snapshot) => {
-          const currentPlayers = snapshot.val() || [];
+        get(lobbyRef).then((snapshot) => {
+          const lobbyData = snapshot.val() || {};
+          const currentPlayers = lobbyData.players || [];
+          const currentStatus = lobbyData.status || "lobby";
           if (!currentPlayers.includes(name)) {
             const updated = [...currentPlayers, name];
             update(lobbyRef, { players: updated }).then(() => {
@@ -231,8 +255,9 @@ export default function App() {
               setPhase("lobby");
             });
           } else {
-            alert(`"${name}" adlı oyuncu zaten bu lobiye katılmış! Lütfen farklı bir isim seçin.`);
-            return;
+            // Rejoin: player already in list (dropped and reconnecting)
+            setPlayers(currentPlayers);
+            setPhase(currentStatus);
           }
         });
       }
@@ -278,7 +303,7 @@ export default function App() {
     players.forEach((p) => {
       initialPlayerMulis[p] = 10.0;
       initialPlayerRes[p] = Object.fromEntries(
-        RESOURCES.map((r) => [r.id, 2]),
+        RESOURCES.map((r) => [r.id, r.id === "waste" ? 0 : 2]),
       );
       initialPlayerCos[p] = Object.fromEntries(COMPANIES.map((c) => [c.id, 0]));
     });
@@ -311,6 +336,7 @@ export default function App() {
       setCos(initialCos);
       setNotifs(initialNotifs);
       setFirstPlayer(randomStartPlayer);
+      setTurnPlayer(randomStartPlayer);
       setActivePlayer(randomStartPlayer);
       setPhase("game");
     }
@@ -564,7 +590,7 @@ export default function App() {
 
   // Trade
   function startSend(player) {
-    if (myName !== activePlayer) {
+    if (myName !== turnPlayer) {
       notify("Sadece kendini için aksiyon alabilirsin!");
       return;
     }
@@ -581,10 +607,10 @@ export default function App() {
   }
 
   function adjustBasket(id, delta) {
-    const activePlayerAmount = playerRes[activePlayer]?.[id] || 0;
+    const myAmount = playerRes[myName]?.[id] || 0;
     setBasket((b) => ({
       ...b,
-      [id]: Math.max(0, Math.min(activePlayerAmount, (b[id] || 0) + delta)),
+      [id]: Math.max(0, Math.min(myAmount, (b[id] || 0) + delta)),
     }));
   }
 
@@ -599,15 +625,15 @@ export default function App() {
     if (!items.length) return;
 
     const updatedRes = { ...playerRes };
-    const activeRes = { ...playerRes[activePlayer] };
+    const myRes = { ...playerRes[myName] };
     const targetRes = { ...playerRes[sendTo] };
 
     items.forEach(([id, amt]) => {
-      activeRes[id] = Math.max(0, activeRes[id] - amt);
+      myRes[id] = Math.max(0, myRes[id] - amt);
       targetRes[id] = (targetRes[id] || 0) + amt;
     });
 
-    updatedRes[activePlayer] = activeRes;
+    updatedRes[myName] = myRes;
     updatedRes[sendTo] = targetRes;
 
     updateGameData({ playerRes: updatedRes });
@@ -616,7 +642,7 @@ export default function App() {
       .map(([id, amt]) => `${amt}×${RESOURCES.find((r) => r.id === id).name}`)
       .join(", ");
 
-    notify(`💸 TRANSFER: ${activePlayer} → ${sendTo}: ${desc}`);
+    notify(`💸 TRANSFER: ${myName} → ${sendTo}: ${desc}`);
     setView("main");
     setSendTo(null);
     setBasket({});
@@ -624,7 +650,7 @@ export default function App() {
 
   // Cards
   function toggleCard(cardId) {
-    if (myName !== activePlayer) {
+    if (myName !== turnPlayer) {
       notify("Sıran değil!");
       return;
     }
@@ -662,7 +688,7 @@ export default function App() {
   }
 
   function toggleUsed(cardId) {
-    if (myName !== activePlayer) {
+    if (myName !== turnPlayer) {
       notify("Sıran değil!");
       return;
     }
@@ -756,49 +782,39 @@ export default function App() {
 
   // Skip turn
   function skipTurn() {
-    if (!players || players.length === 0) {
-      notify("Oyuncu listesi yüklenmedi!");
-      return;
-    }
+    if (!players || players.length === 0) return;
 
-    if (myName !== activePlayer) {
+    if (myName !== turnPlayer) {
       notify("Sıran değil!");
       return;
     }
 
     const now = Date.now();
-    if (now - lastActionTime < RATE_LIMIT_MS) {
-      return;
-    }
+    if (now - lastActionTime < RATE_LIMIT_MS) return;
     setLastActionTime(now);
 
-    // Move to next player
-    const playerIndex = players.indexOf(activePlayer);
-    if (playerIndex === -1) {
-      notify("Mevcut oyuncu listede bulunamadı!");
-      return;
-    }
+    const idx = players.indexOf(turnPlayer);
+    const nextPlayer = players[(idx + 1) % players.length];
 
-    const nextIndex = (playerIndex + 1) % players.length;
-    const nextPlayer = players[nextIndex];
+    // Ref'i hemen güncelle, listener tekrar eski değeri yazmasın
+    firebaseTurnPlayerRef.current = nextPlayer;
+    setTurnPlayer(nextPlayer);
 
     if (db && sessionCode) {
-      update(ref(db, `lobbies/${sessionCode}`), { activePlayer: nextPlayer }).catch(
-        (err) => {
-          console.error("Firebase update error:", err);
-          notify("Sıra geçme başarısız!");
-        }
-      );
-    } else {
-      setActivePlayer(nextPlayer);
+      update(ref(db, `lobbies/${sessionCode}`), { activePlayer: nextPlayer }).catch((err) => {
+        console.error("Firebase update error:", err);
+        notify("Sıra geçme başarısız!");
+        firebaseTurnPlayerRef.current = turnPlayer;
+        setTurnPlayer(turnPlayer);
+      });
     }
 
-    notify(`⏭️ ${activePlayer} SIRAYI GEÇTİ. Şimdi sıra: ${nextPlayer}`);
+    notify(`⏭️ ${myName} SIRAYI GEÇTİ. Şimdi sıra: ${nextPlayer}`);
   }
 
   // Quarter vote
   function startVote() {
-    if (myName !== activePlayer) {
+    if (myName !== turnPlayer) {
       notify("Sıran değil!");
       return;
     }
@@ -813,6 +829,7 @@ export default function App() {
     updateGameData({
       votes: initialVotes,
       nextFP: null,
+      activeVote: "quarter",
     });
     setView("quarter-vote");
   }
@@ -843,7 +860,7 @@ export default function App() {
   }
 
   function finalizeQuarter() {
-    if (myName !== activePlayer) {
+    if (myName !== turnPlayer) {
       notify("Sıran değil!");
       return;
     }
@@ -863,19 +880,30 @@ export default function App() {
       votes: {},
       nextFP: null,
       status: "game",
+      activeVote: null,
     });
     notify(`📢 Q${nextQ} başladı. First Player: ${nextFP}`);
     setView("main");
     setTab("res");
   }
 
-  // Price proposer / editor
-  function handleProposePrices(proposedRes, proposedCos) {
-    if (myName !== activePlayer) {
-      notify("Sıran değil!");
-      return;
-    }
+  function handleStartPriceVote(proposedRes, proposedResBuySell, proposedCos, proposedCosBuySell) {
+    updateGameData({
+      activeVote: "price",
+      priceVote: {
+        active: true,
+        proposed: {
+          res: proposedRes,
+          resBuySell: proposedResBuySell,
+          cos: proposedCos,
+          cosBuySell: proposedCosBuySell,
+        },
+      },
+    });
+  }
 
+  // Price proposer / editor
+  function handleProposePrices(proposedRes, proposedResBuySell, proposedCos, proposedCosBuySell) {
     const now = Date.now();
     if (now - lastActionTime < RATE_LIMIT_MS) {
       return;
@@ -888,6 +916,14 @@ export default function App() {
         nextResData[id] = { ...nextResData[id], base: basePrice };
       }
     });
+    // Apply buy/sell for resources (should be same)
+    if (proposedResBuySell) {
+      Object.entries(proposedResBuySell).forEach(([id, { buys, sells }]) => {
+        if (nextResData[id]) {
+          nextResData[id] = { ...nextResData[id], buys, sells };
+        }
+      });
+    }
 
     const nextCosData = { ...cos };
     Object.entries(proposedCos).forEach(([id, sharePrice]) => {
@@ -895,10 +931,20 @@ export default function App() {
         nextCosData[id] = { ...nextCosData[id], price: sharePrice };
       }
     });
+    // Apply buy/sell for companies
+    if (proposedCosBuySell) {
+      Object.entries(proposedCosBuySell).forEach(([id, { buys, sells }]) => {
+        if (nextCosData[id]) {
+          nextCosData[id] = { ...nextCosData[id], buys, sells };
+        }
+      });
+    }
 
     updateGameData({
       res: nextResData,
       cos: nextCosData,
+      activeVote: null,
+      priceVote: null,
     });
 
     notify("🔔 FİYAT GÜNCELLEMESİ: Yeni piyasa fiyatları onaylandı!");
@@ -1035,7 +1081,7 @@ export default function App() {
         {view === "main" && (
           <Header
             myName={myName}
-            muli={playerMulis[activePlayer] || 0}
+            muli={playerMulis[myName] || 0}
             unread={unread}
             quarter={quarter}
             firstPlayer={firstPlayer}
@@ -1204,8 +1250,13 @@ export default function App() {
               res={res}
               cos={cos}
               players={players}
-              onClose={() => setView("main")}
+              onClose={() => {
+                setView("main");
+                updateGameData({ activeVote: null, priceVote: null });
+              }}
               onProposePrices={handleProposePrices}
+              onStartVote={handleStartPriceVote}
+              priceVote={priceVote}
             />
           </div>
         )}

@@ -1,4 +1,4 @@
-import { FONT_TITLE, FONT_MONO, RED } from "../../constants";
+import { FONT_TITLE, RED } from "../../constants";
 
 export default function BottomBar({
   activeCardsCount,
@@ -11,35 +11,38 @@ export default function BottomBar({
   return (
     <div
       style={{
-        padding: "8px 12px",
-        borderTop: "1px solid #181818",
+        padding: "10px 12px",
+        paddingBottom: "max(10px, env(safe-area-inset-bottom, 10px))",
+        borderTop: "2px solid #222",
         display: "flex",
         gap: 6,
         flexShrink: 0,
-        background: "#0a0a0a",
+        background: "#0d0d0d",
+        minHeight: 60,
       }}
     >
       <button
         onClick={onSkipTurn}
         style={{
-          flex: 1,
-          padding: "11px",
+          flex: 2,
+          padding: "13px 6px",
           fontFamily: FONT_TITLE,
-          fontSize: 13,
+          fontSize: 14,
           letterSpacing: 1.5,
-          background: "#130a0a",
+          background: "#1a0505",
           color: RED,
-          border: `1px solid ${RED}30`,
+          border: `1px solid ${RED}50`,
           borderRadius: 4,
           cursor: "pointer",
         }}
       >
-        SIRANı GEÇ
+        SIRAYI GEÇ
       </button>
       <button
         onClick={onMarketCardClick}
         style={{
-          padding: "11px 12px",
+          flex: 1,
+          padding: "13px 4px",
           fontFamily: FONT_TITLE,
           fontSize: 13,
           background: "#0a0d13",
@@ -55,7 +58,8 @@ export default function BottomBar({
       <button
         onClick={onPriceEditClick}
         style={{
-          padding: "11px 12px",
+          flex: 1,
+          padding: "13px 4px",
           fontFamily: FONT_TITLE,
           fontSize: 13,
           background: "#141414",
@@ -71,7 +75,8 @@ export default function BottomBar({
       <button
         onClick={onQuarterChange}
         style={{
-          padding: "11px 12px",
+          flex: 1,
+          padding: "13px 4px",
           fontFamily: FONT_TITLE,
           fontSize: 13,
           letterSpacing: 1,
@@ -87,9 +92,10 @@ export default function BottomBar({
       <button
         onClick={onPlayersClick}
         style={{
-          padding: "11px 14px",
+          flex: 1,
+          padding: "13px 4px",
           fontFamily: FONT_TITLE,
-          fontSize: 14,
+          fontSize: 16,
           background: "#141414",
           color: "#aaa",
           border: "1px solid #272727",

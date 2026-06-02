@@ -6,7 +6,7 @@ export function initRes() {
       r.id,
       {
         amount: 2,
-        base: parseFloat((Math.random() * 2 + 1).toFixed(1)),
+        base: 2,
         buys: 0,
         sells: 0,
       },
@@ -21,8 +21,8 @@ export function initCos() {
       {
         shares: 7,
         price: 5.0,
-        buys: 0,
-        sells: 0,
+        buys: 7,
+        sells: 5,
       },
     ])
   );

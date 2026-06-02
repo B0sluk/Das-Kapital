@@ -1,4 +1,5 @@
 import { FONT_TITLE, FONT_MONO, RED, GOLD, COMPANIES } from "../../constants";
+import { getCompanyTiers } from "../../utils/gameHelpers";
 
 export default function CompaniesTab({
   cos,
@@ -205,16 +206,20 @@ export default function CompaniesTab({
                   marginBottom: 7,
                 }}
               >
-                EN BÜYÜK HİSSEDARLAR
+                ŞİRKET TİERLERİ
               </div>
-              {top3.map((sh, i) => (
+              {getCompanyTiers(sharesOwned).map((tier) => (
                 <div
-                  key={sh.name}
+                  key={tier.level}
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    marginBottom: i < 2 ? 5 : 0,
+                    marginBottom: tier.level < 4 ? 5 : 0,
+                    padding: "6px 8px",
+                    background: tier.unlock ? "#0d2d0d" : "#1a0a0a",
+                    borderRadius: 3,
+                    border: `1px solid ${tier.unlock ? "#2ecc7140" : "#3a0a0a"}`,
                   }}
                 >
                   <div
@@ -224,31 +229,31 @@ export default function CompaniesTab({
                       style={{
                         fontFamily: FONT_MONO,
                         fontSize: 11,
-                        color: ["#e8b84b", "#999", "#6b5a3e"][i],
+                        color: tier.unlock ? "#2ecc71" : "#555",
                         fontWeight: 700,
                       }}
                     >
-                      {["①", "②", "③"][i]}
+                      {tier.unlock ? "✓" : "◯"}
                     </span>
                     <span
                       style={{
                         fontFamily: FONT_TITLE,
-                        fontSize: 14,
+                        fontSize: 13,
                         letterSpacing: 1.5,
-                        color: sh.name === activePlayer ? RED : "#bbb",
+                        color: tier.unlock ? "#2ecc71" : "#666",
                       }}
                     >
-                      {sh.name}
+                      {tier.label}
                     </span>
                   </div>
                   <span
                     style={{
                       fontFamily: FONT_MONO,
-                      fontSize: 12,
-                      color: sh.shares > 0 ? GOLD : "#333",
+                      fontSize: 11,
+                      color: tier.unlock ? "#2ecc71" : "#555",
                     }}
                   >
-                    {sh.shares} hisse
+                    {tier.threshold}+ hisse
                   </span>
                 </div>
               ))}

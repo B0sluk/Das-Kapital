@@ -12,10 +12,15 @@ import PlayersPanel from "./components/panels/PlayersPanel";
 import SendPanel from "./components/panels/SendPanel";
 import QuarterVotePanel from "./components/panels/QuarterVotePanel";
 import PriceEditPanel from "./components/panels/PriceEditPanel";
+import MarketCardPanel from "./components/panels/MarketCardPanel";
+import CardVotePanel from "./components/panels/CardVotePanel";
+import MoneyLossPanel from "./components/panels/MoneyLossPanel";
 import { RESOURCES, COMPANIES, FONT_TITLE, FONT_MONO, RED } from "./constants";
 import { ts } from "./utils/helpers";
-import { initRes, initCos } from "./utils/gameHelpers";
+import { initRes, initCos, getRandomElement } from "./utils/gameHelpers";
 import { validateAmount, createSafeNotif } from "./utils/validation";
+import { applyCardEffect, getEffectDescription } from "./utils/cardHelpers";
+import { ALL_CARDS } from "./constants/cards";
 
 // Firebase imports
 import { initFirebase } from "./utils/firebase";
@@ -53,6 +58,12 @@ export default function App() {
   const [activeCards, setActiveCards] = useState([]);
   const [votes, setVotes] = useState({});
   const [nextFP, setNextFP] = useState(null);
+
+  // Card voting state
+  const [currentCardVote, setCurrentCardVote] = useState(null);
+
+  // Money loss state
+  const [moneyLossCard, setMoneyLossCard] = useState(null);
 
   // Toast notification state
   const [toast, setToast] = useState(null);
@@ -97,7 +108,11 @@ export default function App() {
       }
       if (data.quarter) setQuarter(data.quarter);
       if (data.firstPlayer) setFirstPlayer(data.firstPlayer);
-      if (data.activePlayer) setActivePlayer(data.activePlayer);
+      // Only update activePlayer during phase/quarter transitions, not on every change
+      // This prevents the view from jumping when other players make trades
+      if (data.status !== phase || data.quarter !== quarter) {
+        if (data.activePlayer) setActivePlayer(data.activePlayer);
+      }
       if (data.playerMulis) setPlayerMulis(data.playerMulis);
       if (data.playerRes) setPlayerRes(data.playerRes);
       if (data.playerCos) setPlayerCos(data.playerCos);
@@ -111,7 +126,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [db, sessionCode, phase]);
+  }, [db, sessionCode, phase, quarter]);
 
   // Toast notifier sync on new notifications from Firebase
   const [prevNotifsCount, setPrevNotifsCount] = useState(0);
@@ -216,8 +231,8 @@ export default function App() {
               setPhase("lobby");
             });
           } else {
-            setPlayers(currentPlayers);
-            setPhase("lobby");
+            alert(`"${name}" adlı oyuncu zaten bu lobiye katılmış! Lütfen farklı bir isim seçin.`);
+            return;
           }
         });
       }
@@ -238,6 +253,8 @@ export default function App() {
       if (db) {
         update(ref(db, `lobbies/${sessionCode}`), { players: updated });
       }
+    } else {
+      notify(`⚠ "${name}" zaten oyuncu listesinde var!`);
     }
   }
 
@@ -259,15 +276,18 @@ export default function App() {
     const initialPlayerMulis = {};
 
     players.forEach((p) => {
-      initialPlayerMulis[p] = 25.0;
+      initialPlayerMulis[p] = 10.0;
       initialPlayerRes[p] = Object.fromEntries(
-        RESOURCES.map((r) => [r.id, Math.floor(Math.random() * 4) + 2]),
+        RESOURCES.map((r) => [r.id, 2]),
       );
       initialPlayerCos[p] = Object.fromEntries(COMPANIES.map((c) => [c.id, 0]));
     });
 
+    // Random starting player for turn system
+    const randomStartPlayer = getRandomElement(players);
+
     const initialNotifs = [
-      { id: Date.now(), msg: "Oyun başladı. İyi şanslar, işçi.", t: ts() },
+      { id: Date.now(), msg: `🎲 Oyun başladı! İlk Oyuncu: ${randomStartPlayer}. İyi şanslar, işçi.`, t: ts() },
     ];
 
     if (db) {
@@ -280,8 +300,8 @@ export default function App() {
         playerCos: initialPlayerCos,
         notifs: initialNotifs,
         quarter: 1,
-        firstPlayer: players[0],
-        activePlayer: players[0],
+        firstPlayer: randomStartPlayer,
+        activePlayer: randomStartPlayer,
       });
     } else {
       setPlayerMulis(initialPlayerMulis);
@@ -290,6 +310,8 @@ export default function App() {
       setRes(initialRes);
       setCos(initialCos);
       setNotifs(initialNotifs);
+      setFirstPlayer(randomStartPlayer);
+      setActivePlayer(randomStartPlayer);
       setPhase("game");
     }
   }
@@ -613,10 +635,30 @@ export default function App() {
     }
     setLastActionTime(now);
 
-    const updatedCards = activeCards.find((c) => c.id === cardId)
-      ? activeCards.filter((c) => c.id !== cardId)
-      : [...activeCards, { id: cardId, used: true }];
-    updateGameData({ activeCards: updatedCards });
+    // Check if card already exists
+    const cardExists = activeCards.find((c) => c.id === cardId);
+
+    if (cardExists) {
+      // Remove card if already active
+      const updatedCards = activeCards.filter((c) => c.id !== cardId);
+      updateGameData({ activeCards: updatedCards });
+    } else {
+      // Find the card details
+      const card = ALL_CARDS.find((c) => c.id === cardId);
+      
+      if (!card) return;
+
+      // Check if it's a policy or event card (requires voting)
+      if (card.type === "policy" || card.type === "event") {
+        // Start voting process
+        setCurrentCardVote(card);
+        setView("card-vote");
+      } else {
+        // Add card directly (market cards)
+        const updatedCards = [...activeCards, { id: cardId, used: true }];
+        updateGameData({ activeCards: updatedCards });
+      }
+    }
   }
 
   function toggleUsed(cardId) {
@@ -635,6 +677,123 @@ export default function App() {
       c.id === cardId ? { ...c, used: !c.used } : c,
     );
     updateGameData({ activeCards: updatedCards });
+  }
+
+  // Card voting approval
+  function approveCardVote() {
+    if (!currentCardVote) return;
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
+    const card = currentCardVote;
+    const updatedCards = [...activeCards, { id: card.id, used: true }];
+
+    // Apply card effect to market resources
+    const updatedRes = applyCardEffect(card.effect, res);
+
+    updateGameData({
+      activeCards: updatedCards,
+      res: updatedRes,
+    });
+
+    notify(
+      `✓ ${card.type === "policy" ? "POLİTİKA" : "OLAY"} ONAYLANDI: ${card.name} - ${getEffectDescription(card.effect)}`,
+    );
+
+    setCurrentCardVote(null);
+    setView("main");
+  }
+
+  // Card voting rejection
+  function rejectCardVote() {
+    if (!currentCardVote) return;
+
+    const card = currentCardVote;
+    notify(
+      `✕ ${card.type === "policy" ? "POLİTİKA" : "OLAY"} REDDEDİLDİ: ${card.name}`,
+    );
+
+    setCurrentCardVote(null);
+    setView("main");
+  }
+
+  // Money loss deduction
+  function deductMoneyForCard(amount) {
+    if (!moneyLossCard) return;
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
+    const player = myName;
+    const muli = playerMulis[player] || 0;
+    const deductAmount = parseFloat(amount) || 0;
+
+    if (deductAmount <= 0 || deductAmount > muli) {
+      notify("Geçersiz tutar!");
+      return;
+    }
+
+    const updatedMulis = {
+      ...playerMulis,
+      [player]: +(muli - deductAmount).toFixed(2),
+    };
+
+    updateGameData({ playerMulis: updatedMulis });
+    notify(
+      `💸 ${player} PARA KAYBETTI: "${moneyLossCard.name}" kartı için −${deductAmount.toFixed(2)}M`,
+    );
+
+    setMoneyLossCard(null);
+    setView("main");
+  }
+
+  // Skip turn
+  function skipTurn() {
+    if (!players || players.length === 0) {
+      notify("Oyuncu listesi yüklenmedi!");
+      return;
+    }
+
+    if (myName !== activePlayer) {
+      notify("Sıran değil!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
+    // Move to next player
+    const playerIndex = players.indexOf(activePlayer);
+    if (playerIndex === -1) {
+      notify("Mevcut oyuncu listede bulunamadı!");
+      return;
+    }
+
+    const nextIndex = (playerIndex + 1) % players.length;
+    const nextPlayer = players[nextIndex];
+
+    if (db && sessionCode) {
+      update(ref(db, `lobbies/${sessionCode}`), { activePlayer: nextPlayer }).catch(
+        (err) => {
+          console.error("Firebase update error:", err);
+          notify("Sıra geçme başarısız!");
+        }
+      );
+    } else {
+      setActivePlayer(nextPlayer);
+    }
+
+    notify(`⏭️ ${activePlayer} SIRAYI GEÇTİ. Şimdi sıra: ${nextPlayer}`);
   }
 
   // Quarter vote
@@ -743,6 +902,57 @@ export default function App() {
     });
 
     notify("🔔 FİYAT GÜNCELLEMESİ: Yeni piyasa fiyatları onaylandı!");
+  }
+
+  // Market card purchase deduction
+  function buyMarketCard(player, cardName, amount) {
+    if (myName !== player) {
+      notify("Sadece kendini için aksiyon alabilirsin!");
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
+    const muli = playerMulis[player] || 0;
+    const deductAmount = parseFloat(amount) || 0;
+
+    if (deductAmount <= 0) {
+      notify("Geçersiz tutar!");
+      return;
+    }
+
+    if (muli < deductAmount) {
+      notify(`⚠ Yetersiz Muli! (Mevcut: ${muli.toFixed(2)}M)`);
+      return;
+    }
+
+    const updatedMulis = {
+      ...playerMulis,
+      [player]: +(muli - deductAmount).toFixed(2),
+    };
+
+    // Add market card to active cards
+    const marketCard = {
+      id: `market_${Date.now()}`,
+      name: cardName,
+      type: "market",
+      effect: cardName,
+      used: false,
+    };
+
+    const updatedCards = [...activeCards, marketCard];
+
+    updateGameData({ 
+      playerMulis: updatedMulis,
+      activeCards: updatedCards,
+    });
+    notify(
+      `🎴 ${player} PAZAR KARTI SATIN ALDI: "${cardName}" (−${deductAmount.toFixed(2)}M)`,
+    );
   }
 
   // ── PHASE: NAME ──────────────────────────────────────────────────────
@@ -928,6 +1138,10 @@ export default function App() {
                 onCardFilter={setCardFilter}
                 onToggleCard={toggleCard}
                 onToggleUsed={toggleUsed}
+                onMoneyLossClick={(card) => {
+                  setMoneyLossCard(card);
+                  setView("money-loss");
+                }}
               />
             )}
           </div>
@@ -996,11 +1210,54 @@ export default function App() {
           </div>
         )}
 
+        {/* MARKET CARD PANEL */}
+        {view === "market-card" && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <MarketCardPanel
+              playerMuli={playerMulis[myName] || 0}
+              onClose={() => setView("main")}
+              onBuyCard={(cardName, amount) => buyMarketCard(myName, cardName, amount)}
+            />
+          </div>
+        )}
+
+        {/* CARD VOTE PANEL */}
+        {view === "card-vote" && currentCardVote && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <CardVotePanel
+              card={currentCardVote}
+              players={players}
+              onClose={() => {
+                setCurrentCardVote(null);
+                setView("main");
+              }}
+              onApprove={approveCardVote}
+              onReject={rejectCardVote}
+            />
+          </div>
+        )}
+
+        {/* MONEY LOSS PANEL */}
+        {view === "money-loss" && moneyLossCard && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <MoneyLossPanel
+              playerMuli={playerMulis[myName] || 0}
+              cardName={moneyLossCard.name}
+              onClose={() => {
+                setMoneyLossCard(null);
+                setView("main");
+              }}
+              onDeductMoney={deductMoneyForCard}
+            />
+          </div>
+        )}
+
         {/* BOTTOM BAR */}
         {view === "main" && (
           <BottomBar
             activeCardsCount={activeCards.length}
-            onAddCard={() => setTab("cards")}
+            onSkipTurn={skipTurn}
+            onMarketCardClick={() => setView("market-card")}
             onPriceEditClick={() => setView("price-edit")}
             onQuarterChange={startVote}
             onPlayersClick={() => setView("players")}

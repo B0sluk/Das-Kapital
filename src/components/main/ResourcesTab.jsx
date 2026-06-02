@@ -79,11 +79,12 @@ export default function ResourcesTab({
         const d = res[r.id];
         const bp = +(d.base * 1.5).toFixed(2);
         const amount = currentRes[r.id] || 0;
+        const isStatusDisabled = r.id === "status"; // Status kaynağı devre dışı
 
         return (
           <div
             key={r.id}
-            style={{ padding: "11px 16px", borderBottom: "1px solid #141414" }}
+            style={{ padding: "11px 16px", borderBottom: "1px solid #141414", opacity: isStatusDisabled ? 0.5 : 1 }}
           >
             <div
               style={{
@@ -147,6 +148,7 @@ export default function ResourcesTab({
                   bg: RED,
                   cl: "#fff",
                   br: "none",
+                  disabled: isStatusDisabled,
                 },
                 {
                   label: "SAT",
@@ -154,6 +156,7 @@ export default function ResourcesTab({
                   bg: "#141414",
                   cl: amount < 1 ? "#2a2a2a" : "#999",
                   br: "1px solid #272727",
+                  disabled: false,
                 },
                 {
                   label: "+EARN",
@@ -161,6 +164,7 @@ export default function ResourcesTab({
                   bg: "#091a10",
                   cl: "#2ecc71",
                   br: "1px solid #2ecc7120",
+                  disabled: false,
                 },
                 {
                   label: "−SPEND",
@@ -168,22 +172,25 @@ export default function ResourcesTab({
                   bg: "#180c07",
                   cl: amount < 1 ? "#2a1508" : "#e67e22",
                   br: "1px solid #e67e2220",
+                  disabled: false,
                 },
               ].map((btn) => (
                 <button
                   key={btn.label}
                   onClick={btn.fn}
+                  disabled={btn.disabled}
                   style={{
                     flex: 1,
                     padding: "7px 0",
                     fontSize: 11,
                     fontFamily: FONT_TITLE,
                     letterSpacing: 1,
-                    background: btn.bg,
-                    color: btn.cl,
+                    background: btn.disabled ? "#1a1a1a" : btn.bg,
+                    color: btn.disabled ? "#444" : btn.cl,
                     border: btn.br,
                     borderRadius: 3,
-                    cursor: "pointer",
+                    cursor: btn.disabled ? "not-allowed" : "pointer",
+                    opacity: btn.disabled ? 0.5 : 1,
                   }}
                 >
                   {btn.label}

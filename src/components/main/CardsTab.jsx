@@ -8,6 +8,7 @@ export default function CardsTab({
   onCardFilter,
   onToggleCard,
   onToggleUsed,
+  onMoneyLossClick,
 }) {
   const filteredCards = ALL_CARDS.filter((c) => {
     const matchQ = c.name.toLowerCase().includes(cardSearch.toLowerCase());
@@ -17,6 +18,9 @@ export default function CardsTab({
       (cardFilter === "event" && c.type === "event");
     return matchQ && matchF;
   });
+
+  // Get market cards from active cards
+  const marketCards = activeCards.filter((ac) => ac.type === "market");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -72,6 +76,81 @@ export default function CardsTab({
         </div>
       </div>
 
+      {/* MARKET CARDS SECTION */}
+      {marketCards.length > 0 && (
+        <div
+          style={{
+            padding: "10px 12px",
+            borderBottom: "1px solid #1a1a1a",
+            background: "#0a0d10",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 9,
+              color: "#8b735660",
+              fontFamily: FONT_MONO,
+              letterSpacing: 2,
+              marginBottom: 8,
+            }}
+          >
+            PAZAR KARTLARI
+          </div>
+          {marketCards.map((mc) => (
+            <div
+              key={mc.id}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 5,
+                padding: "7px 9px",
+                background: "#111",
+                borderRadius: 3,
+                border: "1px solid #2a2414",
+              }}
+            >
+              <div>
+                <span
+                  style={{
+                    fontSize: 9,
+                    color: "#8b7355",
+                    fontFamily: FONT_MONO,
+                    marginRight: 7,
+                  }}
+                >
+                  PAZAR
+                </span>
+                <span
+                  style={{
+                    fontFamily: FONT_TITLE,
+                    fontSize: 13,
+                    letterSpacing: 1,
+                  }}
+                >
+                  {mc.name}
+                </span>
+              </div>
+              <button
+                onClick={() => onToggleCard(mc.id)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#444",
+                  fontSize: 14,
+                  padding: "0 4px",
+                  lineHeight: 1,
+                  cursor: "pointer",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {activeCards.length > 0 && (
         <div
           style={{
@@ -93,8 +172,7 @@ export default function CardsTab({
             AKTİF
           </div>
           {activeCards.map((ac) => {
-            const card = ALL_CARDS.find((c) => c.id === ac.id);
-            if (!card) return null;
+            const card = ALL_CARDS.find((c) => c.id === ac.id) || ac;
             return (
               <div
                 key={ac.id}
@@ -113,12 +191,12 @@ export default function CardsTab({
                   <span
                     style={{
                       fontSize: 9,
-                      color: card.type === "policy" ? "#2471a3" : "#b7950b",
+                      color: card.type === "policy" ? "#2471a3" : card.type === "event" ? "#b7950b" : "#8b7355",
                       fontFamily: FONT_MONO,
                       marginRight: 7,
                     }}
                   >
-                    {card.type === "policy" ? "POL" : "OLY"}
+                    {card.type === "policy" ? "POL" : card.type === "event" ? "OLY" : "PAZAR"}
                   </span>
                   <span
                     style={{
@@ -147,6 +225,22 @@ export default function CardsTab({
                       {ac.used ? "KULLANILDI" : "KULLANILMADI"}
                     </button>
                   )}
+                  <button
+                    onClick={() => onMoneyLossClick && onMoneyLossClick(ac)}
+                    title="Para Kaybetme"
+                    style={{
+                      fontSize: 11,
+                      background: "none",
+                      border: "none",
+                      color: "#e67e22",
+                      padding: "0 4px",
+                      lineHeight: 1,
+                      cursor: "pointer",
+                      opacity: 0.7,
+                    }}
+                  >
+                    💸
+                  </button>
                   <button
                     onClick={() => onToggleCard(ac.id)}
                     style={{

@@ -2,7 +2,8 @@ import { FONT_TITLE, FONT_MONO, RED } from "../../constants";
 
 export default function BottomBar({
   activeCardsCount,
-  onAddCard,
+  onSkipTurn,
+  onMarketCardClick,
   onQuarterChange,
   onPriceEditClick,
   onPlayersClick,
@@ -19,7 +20,7 @@ export default function BottomBar({
       }}
     >
       <button
-        onClick={onAddCard}
+        onClick={onSkipTurn}
         style={{
           flex: 1,
           padding: "11px",
@@ -33,7 +34,23 @@ export default function BottomBar({
           cursor: "pointer",
         }}
       >
-        + KART ({activeCardsCount})
+        SIRANı GEÇ
+      </button>
+      <button
+        onClick={onMarketCardClick}
+        style={{
+          padding: "11px 12px",
+          fontFamily: FONT_TITLE,
+          fontSize: 13,
+          background: "#0a0d13",
+          color: "#2471a3",
+          border: "1px solid #2471a330",
+          borderRadius: 4,
+          cursor: "pointer",
+        }}
+        title="Pazar Kartı Satın Al"
+      >
+        🎴 PAZAR
       </button>
       <button
         onClick={onPriceEditClick}

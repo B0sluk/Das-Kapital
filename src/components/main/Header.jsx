@@ -7,6 +7,7 @@ export default function Header({
   quarter,
   firstPlayer,
   onNotificationsClick,
+  onMoneyClick,
 }) {
   return (
     <div
@@ -55,7 +56,17 @@ export default function Header({
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ textAlign: "right" }}>
+        <button
+          onClick={onMoneyClick}
+          style={{
+            textAlign: "right",
+            background: "none",
+            border: "1px solid #2a2a2a",
+            borderRadius: 6,
+            padding: "6px 10px",
+            cursor: "pointer",
+          }}
+        >
           <div
             style={{
               fontSize: 9,
@@ -64,7 +75,7 @@ export default function Header({
               letterSpacing: 1,
             }}
           >
-            MULİ
+            MULİ 💰
           </div>
           <div
             style={{
@@ -76,7 +87,7 @@ export default function Header({
           >
             {muli.toFixed(2)}
           </div>
-        </div>
+        </button>
         <button
           onClick={onNotificationsClick}
           style={{

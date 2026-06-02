@@ -15,6 +15,7 @@ import PriceEditPanel from "./components/panels/PriceEditPanel";
 import MarketCardPanel from "./components/panels/MarketCardPanel";
 import CardVotePanel from "./components/panels/CardVotePanel";
 import MoneyLossPanel from "./components/panels/MoneyLossPanel";
+import MoneyEditPanel from "./components/panels/MoneyEditPanel";
 import { RESOURCES, COMPANIES, FONT_TITLE, FONT_MONO, RED } from "./constants";
 import { ts } from "./utils/helpers";
 import { initRes, initCos, getRandomElement } from "./utils/gameHelpers";
@@ -66,6 +67,9 @@ export default function App() {
 
   // Money loss state
   const [moneyLossCard, setMoneyLossCard] = useState(null);
+
+  // Money edit panel state
+  const [moneyEditTarget, setMoneyEditTarget] = useState(null);
 
   // Toast notification state
   const [toast, setToast] = useState(null);
@@ -780,6 +784,15 @@ export default function App() {
     setView("main");
   }
 
+  function adjustMoney(player, amount) {
+    const current = playerMulis[player] || 0;
+    const newVal = Math.max(0, +(current + amount).toFixed(2));
+    const updatedMulis = { ...playerMulis, [player]: newVal };
+    updateGameData({ playerMulis: updatedMulis });
+    const sign = amount >= 0 ? "+" : "";
+    notify(`💰 ${player} PARA: ${sign}${amount.toFixed(2)}M → Yeni bakiye: ${newVal.toFixed(2)}M`);
+  }
+
   // Skip turn
   function skipTurn() {
     if (!players || players.length === 0) return;
@@ -1089,6 +1102,10 @@ export default function App() {
               setView("notifs");
               setUnread(0);
             }}
+            onMoneyClick={() => {
+              setMoneyEditTarget(myName);
+              setView("money-edit");
+            }}
           />
         )}
 
@@ -1301,6 +1318,16 @@ export default function App() {
               onDeductMoney={deductMoneyForCard}
             />
           </div>
+        )}
+
+        {/* MONEY EDIT PANEL */}
+        {view === "money-edit" && (
+          <MoneyEditPanel
+            players={players}
+            playerMulis={playerMulis}
+            onClose={() => setView("main")}
+            onAdjust={adjustMoney}
+          />
         )}
 
         {/* BOTTOM BAR */}

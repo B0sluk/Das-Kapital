@@ -54,12 +54,15 @@ export default function PriceEditPanel({
   const allVoted =
     Object.keys(votes).length > 0 &&
     Object.values(votes).every((v) => v !== null);
-  const allApproved =
-    allVoted && Object.values(votes).every((v) => v === "approved");
-  const anyRejected = Object.values(votes).some((v) => v === "rejected");
   const approvedCount = Object.values(votes).filter(
     (v) => v === "approved",
   ).length;
+  const rejectedCount = Object.values(votes).filter(
+    (v) => v === "rejected",
+  ).length;
+
+  const isMajorityApproved = allVoted && approvedCount > rejectedCount;
+  const isRejected = allVoted && approvedCount <= rejectedCount;
 
   function handleApply() {
     onProposePrices(editedRes, editedCos);
@@ -95,8 +98,7 @@ export default function PriceEditPanel({
               marginTop: 2,
             }}
           >
-            Tüm oyuncuların onayı gerekli — {approvedCount}/{players.length}{" "}
-            onay
+            Çoğunluk onayı gerekli — {approvedCount} Onay / {rejectedCount} Red
           </div>
           <div
             style={{
@@ -322,7 +324,7 @@ export default function PriceEditPanel({
             );
           })}
 
-          {anyRejected && (
+          {isRejected && (
             <div
               style={{
                 marginTop: 16,
@@ -374,18 +376,18 @@ export default function PriceEditPanel({
           </button>
           <button
             onClick={handleApply}
-            disabled={!allApproved}
+            disabled={!isMajorityApproved}
             style={{
               flex: 1,
               padding: "10px",
               fontFamily: FONT_TITLE,
               fontSize: 16,
               letterSpacing: 2,
-              background: allApproved ? RED : "#181818",
-              color: allApproved ? "#fff" : "#444",
+              background: isMajorityApproved ? RED : "#181818",
+              color: isMajorityApproved ? "#fff" : "#444",
               border: "none",
               borderRadius: 4,
-              cursor: allApproved ? "pointer" : "default",
+              cursor: isMajorityApproved ? "pointer" : "default",
             }}
           >
             YENİ FİYATLARI UYGULA

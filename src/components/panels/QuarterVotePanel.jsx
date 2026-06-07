@@ -13,12 +13,15 @@ export default function QuarterVotePanel({
   const allVoted =
     Object.keys(votes).length > 0 &&
     Object.values(votes).every((v) => v !== null);
-  const allApproved =
-    allVoted && Object.values(votes).every((v) => v === "approved");
-  const anyRejected = Object.values(votes).some((v) => v === "rejected");
   const approvedCount = Object.values(votes).filter(
     (v) => v === "approved",
   ).length;
+  const rejectedCount = Object.values(votes).filter(
+    (v) => v === "rejected",
+  ).length;
+
+  const isMajorityApproved = allVoted && approvedCount > rejectedCount;
+  const isRejected = allVoted && approvedCount <= rejectedCount;
 
   return (
     <>
@@ -48,7 +51,7 @@ export default function QuarterVotePanel({
             marginTop: 2,
           }}
         >
-          Tüm oyuncuların onayı gerekli — {approvedCount}/{players.length} onay
+          Çoğunluk onayı gerekli — {approvedCount} Onay / {rejectedCount} Red
         </div>
         <div
           style={{
@@ -158,7 +161,7 @@ export default function QuarterVotePanel({
             </div>
           );
         })}
-        {allApproved && (
+        {isMajorityApproved && (
           <div
             style={{
               marginTop: 16,
@@ -177,7 +180,7 @@ export default function QuarterVotePanel({
                 marginBottom: 12,
               }}
             >
-              ✓ HERKES ONAYLADI — SONRAKİ FIRST PLAYER SEÇ
+              ✓ ÇOĞUNLUK ONAYLADI — SONRAKİ FIRST PLAYER SEÇ
             </div>
             {players.map((p) => (
               <button
@@ -205,7 +208,7 @@ export default function QuarterVotePanel({
             ))}
           </div>
         )}
-        {anyRejected && !allApproved && (
+        {isRejected && (
           <div
             style={{
               marginTop: 16,
@@ -258,11 +261,11 @@ export default function QuarterVotePanel({
             fontFamily: FONT_TITLE,
             fontSize: 16,
             letterSpacing: 2,
-            background: allApproved && nextFP ? RED : "#181818",
-            color: allApproved && nextFP ? "#fff" : "#444",
+            background: isMajorityApproved && nextFP ? RED : "#181818",
+            color: isMajorityApproved && nextFP ? "#fff" : "#444",
             border: "none",
             borderRadius: 4,
-            cursor: allApproved && nextFP ? "pointer" : "default",
+            cursor: isMajorityApproved && nextFP ? "pointer" : "default",
           }}
         >
           Q{quarter + 1} BAŞLAT

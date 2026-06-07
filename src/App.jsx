@@ -73,6 +73,23 @@ export default function App() {
   const [lastActionTime, setLastActionTime] = useState(0);
   const RATE_LIMIT_MS = 300; // 300ms between actions
 
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("das_kapital_session");
+    if (stored) {
+      try {
+        const { name, code, isHost: hostMode } = JSON.parse(stored);
+        if (name && code) {
+          setMyName(name);
+          setSessionCode(code);
+          setIsHost(!!hostMode);
+        }
+      } catch (err) {
+        console.error("Failed to parse session", err);
+      }
+    }
+  }, []);
+
   // Firebase client references
   const [db, setDb] = useState(null);
 
@@ -130,17 +147,17 @@ export default function App() {
   }, [db, sessionCode, phase, quarter]);
 
   // Toast notifier sync on new notifications from Firebase
-  const [prevNotifsCount, setPrevNotifsCount] = useState(0);
+  const [prevNotifId, setPrevNotifId] = useState(0);
   useEffect(() => {
     if (notifs.length > 0) {
-      if (notifs.length > prevNotifsCount) {
+      if (notifs[0].id !== prevNotifId) {
         const latestMsg = notifs[0].msg;
         if (notifs[0].id !== 0) {
           setToast(latestMsg);
           setUnread((u) => u + 1);
         }
+        setPrevNotifId(notifs[0].id);
       }
-      setPrevNotifsCount(notifs.length);
     }
   }, [notifs]);
 
@@ -229,6 +246,7 @@ export default function App() {
         }).then(() => {
           setPlayers([name]);
           setPhase("lobby");
+          localStorage.setItem("das_kapital_session", JSON.stringify({ name, code, isHost: hostMode }));
         });
       } else {
         // Join existing Lobby
@@ -239,6 +257,7 @@ export default function App() {
             update(lobbyRef, { players: updated }).then(() => {
               setPlayers(updated);
               setPhase("lobby");
+              localStorage.setItem("das_kapital_session", JSON.stringify({ name, code, isHost: hostMode }));
             });
           } else {
             alert(

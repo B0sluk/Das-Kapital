@@ -15,11 +15,15 @@ export default function CardVotePanel({
   const allVoted =
     Object.keys(votes).length > 0 &&
     Object.values(votes).every((v) => v !== null);
-  const allApproved =
-    allVoted && Object.values(votes).every((v) => v === "approved");
   const approvedCount = Object.values(votes).filter(
     (v) => v === "approved",
   ).length;
+  const rejectedCount = Object.values(votes).filter(
+    (v) => v === "rejected",
+  ).length;
+
+  const isMajorityApproved = allVoted && approvedCount > rejectedCount;
+  const isRejected = allVoted && approvedCount <= rejectedCount;
 
   const handleInitializeVotes = () => {
     const initialVotes = Object.fromEntries(players.map((p) => [p, null]));
@@ -117,7 +121,7 @@ export default function CardVotePanel({
               }}
             >
               Bu {card.type === "policy" ? "politika" : "olay"} tüm oyuncuları
-              etkileyecek. Onay için tüm oyuncuların oy vermesi gerekir.
+              etkileyecek. Onay için oyların çoğunluğu (eşitlikte red) geçerlidir.
             </div>
           </div>
         </div>
@@ -168,7 +172,7 @@ export default function CardVotePanel({
     );
   }
 
-  const anyRejected = Object.values(votes).some((v) => v === "rejected");
+  // const anyRejected = Object.values(votes).some((v) => v === "rejected");
 
   return (
     <>
@@ -190,7 +194,7 @@ export default function CardVotePanel({
             marginBottom: 8,
           }}
         >
-          ONAY: {approvedCount}/{players.length}
+          ONAY: {approvedCount} / RED: {rejectedCount}
         </div>
         <div
           style={{
@@ -307,7 +311,7 @@ export default function CardVotePanel({
           );
         })}
 
-        {anyRejected && (
+        {isRejected && (
           <div
             style={{
               marginTop: 16,
@@ -321,7 +325,7 @@ export default function CardVotePanel({
             <div
               style={{ fontSize: 12, color: "#e74c3c", fontFamily: FONT_MONO }}
             >
-              Kart reddedildi. Bir oyuncu onaylamadı.
+              Kart reddedildi.
             </div>
           </div>
         )}
@@ -353,19 +357,19 @@ export default function CardVotePanel({
           ← GERİ
         </button>
         <button
-          onClick={() => (allApproved ? onApprove() : null)}
-          disabled={!allApproved}
+          onClick={() => (isMajorityApproved ? onApprove() : null)}
+          disabled={!isMajorityApproved}
           style={{
             flex: 1,
             padding: "10px",
             fontFamily: FONT_TITLE,
             fontSize: 16,
             letterSpacing: 2,
-            background: allApproved ? RED : "#181818",
-            color: allApproved ? "#fff" : "#444",
+            background: isMajorityApproved ? RED : "#181818",
+            color: isMajorityApproved ? "#fff" : "#444",
             border: "none",
             borderRadius: 4,
-            cursor: allApproved ? "pointer" : "default",
+            cursor: isMajorityApproved ? "pointer" : "default",
           }}
         >
           UYGULA

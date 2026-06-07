@@ -18,7 +18,7 @@ export default function CardVotePanel({
   const allApproved =
     allVoted && Object.values(votes).every((v) => v === "approved");
   const approvedCount = Object.values(votes).filter(
-    (v) => v === "approved"
+    (v) => v === "approved",
   ).length;
 
   const handleInitializeVotes = () => {
@@ -42,7 +42,10 @@ export default function CardVotePanel({
   if (Object.keys(votes).length === 0) {
     return (
       <>
-        <PanelHeader title={`${card.type === "policy" ? "POLİTİKA" : "OLAY"} OYLAMASI`} onClose={onClose} />
+        <PanelHeader
+          title={`${card.type === "policy" ? "POLİTİKA" : "OLAY"} OYLAMASI`}
+          onClose={onClose}
+        />
         <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
           <div
             style={{
@@ -113,8 +116,8 @@ export default function CardVotePanel({
                 lineHeight: 1.6,
               }}
             >
-              Bu {card.type === "policy" ? "politika" : "olay"} tüm oyuncuları etkileyecek.
-              Onay için tüm oyuncuların oy vermesi gerekir.
+              Bu {card.type === "policy" ? "politika" : "olay"} tüm oyuncuları
+              etkileyecek. Onay için tüm oyuncuların oy vermesi gerekir.
             </div>
           </div>
         </div>
@@ -169,10 +172,7 @@ export default function CardVotePanel({
 
   return (
     <>
-      <PanelHeader
-        title={`OYLAMA: ${card.name}`}
-        onClose={onClose}
-      />
+      <PanelHeader title={`OYLAMA: ${card.name}`} onClose={onClose} />
       <div
         style={{
           padding: "14px 16px",
@@ -228,8 +228,8 @@ export default function CardVotePanel({
                   v === "approved"
                     ? "#2ecc7130"
                     : v === "rejected"
-                    ? "#e74c3c30"
-                    : "#1e1e1e"
+                      ? "#e74c3c30"
+                      : "#1e1e1e"
                 }`,
                 borderRadius: 4,
                 marginBottom: 8,
@@ -282,12 +282,24 @@ export default function CardVotePanel({
                 </div>
               )}
               {v === "approved" && (
-                <span style={{ fontSize: 12, color: "#2ecc71", fontFamily: FONT_MONO }}>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "#2ecc71",
+                    fontFamily: FONT_MONO,
+                  }}
+                >
                   ✓ ONAYLADI
                 </span>
               )}
               {v === "rejected" && (
-                <span style={{ fontSize: 12, color: "#e74c3c", fontFamily: FONT_MONO }}>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "#e74c3c",
+                    fontFamily: FONT_MONO,
+                  }}
+                >
                   ✕ REDDETTİ
                 </span>
               )}
@@ -306,7 +318,9 @@ export default function CardVotePanel({
               textAlign: "center",
             }}
           >
-            <div style={{ fontSize: 12, color: "#e74c3c", fontFamily: FONT_MONO }}>
+            <div
+              style={{ fontSize: 12, color: "#e74c3c", fontFamily: FONT_MONO }}
+            >
               Kart reddedildi. Bir oyuncu onaylamadı.
             </div>
           </div>

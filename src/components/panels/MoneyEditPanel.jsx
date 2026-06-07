@@ -7,8 +7,8 @@ export default function MoneyEditPanel({ players, playerMulis, onClose, onAdjust
   const [amount, setAmount] = useState("");
 
   function handle(sign) {
-    const val = parseFloat(amount);
-    if (!val || val <= 0) return;
+    const val = parseInt(amount, 10);
+    if (!val || val < 1) return;
     onAdjust(selected, sign * val);
     setAmount("");
   }
@@ -65,7 +65,7 @@ export default function MoneyEditPanel({ players, playerMulis, onClose, onAdjust
             {selected} — BAKİYE
           </span>
           <span style={{ fontFamily: FONT_MONO, fontSize: 26, fontWeight: 700, color: GOLD }}>
-            {currentMuli.toFixed(2)}M
+            {currentMuli.toFixed(0)}M
           </span>
         </div>
 
@@ -76,11 +76,11 @@ export default function MoneyEditPanel({ players, playerMulis, onClose, onAdjust
           </div>
           <input
             type="number"
-            min="0"
-            step="0.5"
+            min="1"
+            step="1"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
+            onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
+            placeholder="0"
             style={{
               width: "100%",
               padding: "12px 14px",
@@ -97,13 +97,12 @@ export default function MoneyEditPanel({ players, playerMulis, onClose, onAdjust
         </div>
 
         {/* Hızlı miktar butonları */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-          {[1, 2, 5, 10].map((v) => (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 20 }}>
+          {[1, 2, 5, 10, 20, 50].map((v) => (
             <button
               key={v}
               onClick={() => setAmount(String(v))}
               style={{
-                flex: 1,
                 padding: "8px 0",
                 fontFamily: FONT_MONO,
                 fontSize: 13,

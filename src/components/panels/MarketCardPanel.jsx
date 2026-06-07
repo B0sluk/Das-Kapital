@@ -2,11 +2,7 @@ import { useState } from "react";
 import { FONT_TITLE, FONT_MONO, RED, GOLD } from "../../constants";
 import { PanelHeader, AdjBtn } from "../shared/Common";
 
-export default function MarketCardPanel({
-  playerMuli,
-  onClose,
-  onBuyCard,
-}) {
+export default function MarketCardPanel({ playerMuli, onClose, onBuyCard }) {
   const [cardName, setCardName] = useState("");
   const [costAmount, setCostAmount] = useState(1.0);
 
@@ -92,7 +88,7 @@ export default function MarketCardPanel({
               onChange={(e) => {
                 const val = parseFloat(e.target.value);
                 if (!isNaN(val) && val > 0 && val <= playerMuli) {
-                  setCostAmount(+(val).toFixed(2));
+                  setCostAmount(+val.toFixed(2));
                 }
               }}
               step="0.5"
@@ -124,9 +120,12 @@ export default function MarketCardPanel({
               textAlign: "center",
             }}
           >
-            Mevcut Bakiye: <span style={{ color: GOLD }}>{playerMuli.toFixed(2)}M</span>
+            Mevcut Bakiye:{" "}
+            <span style={{ color: GOLD }}>{playerMuli.toFixed(2)}M</span>
             {" → "}
-            <span style={{ color: costAmount > playerMuli ? "#e74c3c" : "#2ecc71" }}>
+            <span
+              style={{ color: costAmount > playerMuli ? "#e74c3c" : "#2ecc71" }}
+            >
               {(playerMuli - costAmount).toFixed(2)}M
             </span>
           </div>
@@ -152,9 +151,17 @@ export default function MarketCardPanel({
           >
             ÖZET
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: 6,
+            }}
+          >
             <span style={{ fontSize: 11, color: "#777" }}>Kart Adı:</span>
-            <span style={{ fontSize: 11, color: "#aaa" }}>{cardName || "—"}</span>
+            <span style={{ fontSize: 11, color: "#aaa" }}>
+              {cardName || "—"}
+            </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 11, color: "#777" }}>Maliyeti:</span>
@@ -192,7 +199,9 @@ export default function MarketCardPanel({
         </button>
         <button
           onClick={handleBuy}
-          disabled={!cardName.trim() || costAmount <= 0 || costAmount > playerMuli}
+          disabled={
+            !cardName.trim() || costAmount <= 0 || costAmount > playerMuli
+          }
           style={{
             flex: 1,
             padding: "10px",

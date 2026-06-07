@@ -191,12 +191,21 @@ export default function CardsTab({
                   <span
                     style={{
                       fontSize: 9,
-                      color: card.type === "policy" ? "#2471a3" : card.type === "event" ? "#b7950b" : "#8b7355",
+                      color:
+                        card.type === "policy"
+                          ? "#2471a3"
+                          : card.type === "event"
+                            ? "#b7950b"
+                            : "#8b7355",
                       fontFamily: FONT_MONO,
                       marginRight: 7,
                     }}
                   >
-                    {card.type === "policy" ? "POL" : card.type === "event" ? "OLY" : "PAZAR"}
+                    {card.type === "policy"
+                      ? "POL"
+                      : card.type === "event"
+                        ? "OLY"
+                        : "PAZAR"}
                   </span>
                   <span
                     style={{

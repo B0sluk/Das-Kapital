@@ -85,7 +85,7 @@ export default function Header({
               color: GOLD,
             }}
           >
-            {muli.toFixed(2)}
+            {Math.floor(muli)}
           </div>
         </button>
         <button

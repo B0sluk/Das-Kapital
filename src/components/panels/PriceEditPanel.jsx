@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { FONT_TITLE, FONT_MONO, RED, GOLD } from "../../constants";
 import { PanelHeader, AdjBtn } from "../shared/Common";
 
@@ -8,78 +8,40 @@ export default function PriceEditPanel({
   players,
   onClose,
   onProposePrices,
-  onStartVote,
-  priceVote,
 }) {
   const [editedRes, setEditedRes] = useState(
-    Object.fromEntries(
-      Object.entries(res).map(([id, d]) => [id, d.base])
-    )
-  );
-
-  const [editedResBuySell, setEditedResBuySell] = useState(
-    Object.fromEntries(
-      Object.entries(res).map(([id, d]) => [id, { buys: d.buys, sells: d.sells }])
-    )
+    Object.fromEntries(Object.entries(res).map(([id, d]) => [id, d.base])),
   );
 
   const [editedCos, setEditedCos] = useState(
-    Object.fromEntries(
-      Object.entries(cos).map(([id, d]) => [id, d.price])
-    )
-  );
-
-  const [editedCosBuySell, setEditedCosBuySell] = useState(
-    Object.fromEntries(
-      Object.entries(cos).map(([id, d]) => [id, { buys: d.buys, sells: d.sells }])
-    )
+    Object.fromEntries(Object.entries(cos).map(([id, d]) => [id, d.price])),
   );
 
   const [isVoting, setIsVoting] = useState(false);
   const [votes, setVotes] = useState({});
 
-  useEffect(() => {
-    if (priceVote?.active && !isVoting) {
-      if (priceVote.proposed) {
-        setEditedRes(priceVote.proposed.res);
-        setEditedResBuySell(priceVote.proposed.resBuySell);
-        setEditedCos(priceVote.proposed.cos);
-        setEditedCosBuySell(priceVote.proposed.cosBuySell);
-      }
-      setVotes(Object.fromEntries(players.map((p) => [p, null])));
-      setIsVoting(true);
-    }
-    if (!priceVote?.active && isVoting) {
-      setIsVoting(false);
-    }
-  }, [priceVote?.active]);
-
   function adjustResPrice(id, delta) {
     setEditedRes((p) => ({
       ...p,
-      [id]: Math.max(1, +(p[id] + delta).toFixed(1)),
+      [id]: Math.max(1, Math.round(p[id] + delta)),
     }));
   }
 
   function adjustCosPrice(id, delta) {
     setEditedCos((p) => ({
       ...p,
-      [id]: Math.max(1.0, +(p[id] + delta).toFixed(1)),
+      [id]: Math.max(1, Math.round(p[id] + delta)),
     }));
   }
 
   function startVote() {
     setVotes(Object.fromEntries(players.map((p) => [p, null])));
     setIsVoting(true);
-    if (onStartVote) {
-      onStartVote(editedRes, editedResBuySell, editedCos, editedCosBuySell);
-    }
   }
 
   function castVote(player, approve) {
     setVotes((v) => {
       const u = { ...v, [player]: approve ? "approved" : "rejected" };
-      // If host approves, auto-approve others for fast mock simulation if desired, or let user click individually
       if (player === "SEN" && approve) {
         players.forEach((p) => {
           if (p !== "SEN") u[p] = "approved";
@@ -96,11 +58,11 @@ export default function PriceEditPanel({
     allVoted && Object.values(votes).every((v) => v === "approved");
   const anyRejected = Object.values(votes).some((v) => v === "rejected");
   const approvedCount = Object.values(votes).filter(
-    (v) => v === "approved"
+    (v) => v === "approved",
   ).length;
 
   function handleApply() {
-    onProposePrices(editedRes, editedResBuySell, editedCos, editedCosBuySell);
+    onProposePrices(editedRes, editedCos);
     onClose();
   }
 
@@ -133,7 +95,8 @@ export default function PriceEditPanel({
               marginTop: 2,
             }}
           >
-            Tüm oyuncuların onayı gerekli — {approvedCount}/{players.length} onay
+            Tüm oyuncuların onayı gerekli — {approvedCount}/{players.length}{" "}
+            onay
           </div>
           <div
             style={{
@@ -177,59 +140,85 @@ export default function PriceEditPanel({
             >
               ÖNERİLEN YENİ FİYATLAR:
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 8,
+              }}
+            >
               <div>
-                <div style={{ fontSize: 9, color: "#555", fontFamily: FONT_MONO, marginBottom: 4 }}>
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: "#555",
+                    fontFamily: FONT_MONO,
+                    marginBottom: 4,
+                  }}
+                >
                   KAYNAKLAR
                 </div>
                 {Object.entries(editedRes).map(([id, val]) => {
                   const oldVal = res[id].base;
                   const diff = val - oldVal;
-                  const oldBuys = res[id].buys;
-                  const newBuys = editedResBuySell[id].buys;
-                  const oldSells = res[id].sells;
-                  const newSells = editedResBuySell[id].sells;
                   return (
-                    <div key={id} style={{ fontSize: 10, fontFamily: FONT_MONO, color: "#aaa", marginBottom: 6 }}>
-                      <div>{id.toUpperCase()}: {oldVal.toFixed(1)}M → {val.toFixed(1)}M{" "}
-                        {diff !== 0 && (
-                          <span style={{ color: diff > 0 ? "#2ecc71" : "#e74c3c" }}>
-                            ({diff > 0 ? "+" : ""}{diff.toFixed(1)})
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 9, color: "#666", marginLeft: 4 }}>
-                        AL: {oldBuys.toFixed(1)} → {newBuys.toFixed(1)}{" | "}
-                        SAT: {oldSells.toFixed(1)} → {newSells.toFixed(1)}
-                      </div>
+                    <div
+                      key={id}
+                      style={{
+                        fontSize: 10,
+                        fontFamily: FONT_MONO,
+                        color: "#aaa",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {id.toUpperCase()}: {oldVal}M →{" "}
+                      {val}M{" "}
+                      {diff !== 0 && (
+                        <span
+                          style={{ color: diff > 0 ? "#2ecc71" : "#e74c3c" }}
+                        >
+                          ({diff > 0 ? "+" : ""}
+                          {diff})
+                        </span>
+                      )}
                     </div>
                   );
                 })}
               </div>
               <div>
-                <div style={{ fontSize: 9, color: "#555", fontFamily: FONT_MONO, marginBottom: 4 }}>
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: "#555",
+                    fontFamily: FONT_MONO,
+                    marginBottom: 4,
+                  }}
+                >
                   ŞİRKETLER
                 </div>
                 {Object.entries(editedCos).map(([id, val]) => {
                   const oldVal = cos[id].price;
                   const diff = val - oldVal;
-                  const oldBuys = cos[id].buys;
-                  const newBuys = editedCosBuySell[id].buys;
-                  const oldSells = cos[id].sells;
-                  const newSells = editedCosBuySell[id].sells;
                   return (
-                    <div key={id} style={{ fontSize: 10, fontFamily: FONT_MONO, color: "#aaa", marginBottom: 6 }}>
-                      <div>{id.toUpperCase()}: {oldVal.toFixed(1)}M → {val.toFixed(1)}M{" "}
-                        {diff !== 0 && (
-                          <span style={{ color: diff > 0 ? "#2ecc71" : "#e74c3c" }}>
-                            ({diff > 0 ? "+" : ""}{diff.toFixed(1)})
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 9, color: "#666", marginLeft: 4 }}>
-                        AL: {oldBuys} → {newBuys}{" | "}
-                        SAT: {oldSells} → {newSells}
-                      </div>
+                    <div
+                      key={id}
+                      style={{
+                        fontSize: 10,
+                        fontFamily: FONT_MONO,
+                        color: "#aaa",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {id.toUpperCase()}: {oldVal}M →{" "}
+                      {val}M{" "}
+                      {diff !== 0 && (
+                        <span
+                          style={{ color: diff > 0 ? "#2ecc71" : "#e74c3c" }}
+                        >
+                          ({diff > 0 ? "+" : ""}
+                          {diff})
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -254,8 +243,8 @@ export default function PriceEditPanel({
                     v === "approved"
                       ? "#2ecc7130"
                       : v === "rejected"
-                      ? "#e74c3c30"
-                      : "#1e1e1e"
+                        ? "#e74c3c30"
+                        : "#1e1e1e"
                   }`,
                   borderRadius: 4,
                   marginBottom: 8,
@@ -308,12 +297,24 @@ export default function PriceEditPanel({
                   </div>
                 )}
                 {v === "approved" && (
-                  <span style={{ fontSize: 12, color: "#2ecc71", fontFamily: FONT_MONO }}>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "#2ecc71",
+                      fontFamily: FONT_MONO,
+                    }}
+                  >
                     ✓ ONAYLADI
                   </span>
                 )}
                 {v === "rejected" && (
-                  <span style={{ fontSize: 12, color: "#e74c3c", fontFamily: FONT_MONO }}>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "#e74c3c",
+                      fontFamily: FONT_MONO,
+                    }}
+                  >
                     ✕ REDDETTİ
                   </span>
                 )}
@@ -332,7 +333,13 @@ export default function PriceEditPanel({
                 textAlign: "center",
               }}
             >
-              <div style={{ fontSize: 12, color: "#e74c3c", fontFamily: FONT_MONO }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#e74c3c",
+                  fontFamily: FONT_MONO,
+                }}
+              >
                 Fiyat değişikliği reddedildi.
               </div>
             </div>
@@ -405,7 +412,7 @@ export default function PriceEditPanel({
               paddingBottom: 6,
             }}
           >
-            KAYNAK FİYATLARI (BASE)
+            KAYNAK FİYATLARI
           </div>
           {Object.entries(editedRes).map(([id, val]) => (
             <div
@@ -417,19 +424,22 @@ export default function PriceEditPanel({
                 marginBottom: 10,
               }}
             >
-              <span style={{ fontFamily: FONT_TITLE, fontSize: 16, letterSpacing: 1.5 }}>
+              <span
+                style={{
+                  fontFamily: FONT_TITLE,
+                  fontSize: 16,
+                  letterSpacing: 1.5,
+                }}
+              >
                 {id.toUpperCase()}
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 11, color: "#555", fontFamily: FONT_MONO }}>
-                  Önceki: {res[id].base.toFixed(1)}M
+                <span
+                  style={{ fontSize: 11, color: "#555", fontFamily: FONT_MONO }}
+                >
+                  Önceki: {res[id].base}M
                 </span>
-                <AdjBtn onClick={() => {
-                  setEditedRes((p) => ({
-                    ...p,
-                    [id]: Math.max(1, +(p[id] - 1).toFixed(1)),
-                  }));
-                }}>−</AdjBtn>
+                <AdjBtn onClick={() => adjustResPrice(id, -1)}>−</AdjBtn>
                 <span
                   style={{
                     fontFamily: FONT_MONO,
@@ -440,18 +450,12 @@ export default function PriceEditPanel({
                     color: val !== res[id].base ? GOLD : "#fff",
                   }}
                 >
-                  {val.toFixed(1)}M
+                  {val}M
                 </span>
-                <AdjBtn onClick={() => {
-                  setEditedRes((p) => ({
-                    ...p,
-                    [id]: +(p[id] + 1).toFixed(1),
-                  }));
-                }}>+</AdjBtn>
+                <AdjBtn onClick={() => adjustResPrice(id, 1)}>+</AdjBtn>
               </div>
             </div>
           ))}
-
         </div>
 
         {/* Company Share Prices */}
@@ -479,19 +483,22 @@ export default function PriceEditPanel({
                 marginBottom: 10,
               }}
             >
-              <span style={{ fontFamily: FONT_TITLE, fontSize: 16, letterSpacing: 1.5 }}>
+              <span
+                style={{
+                  fontFamily: FONT_TITLE,
+                  fontSize: 16,
+                  letterSpacing: 1.5,
+                }}
+              >
                 {id.toUpperCase()}
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 11, color: "#555", fontFamily: FONT_MONO }}>
-                  Önceki: {cos[id].price.toFixed(1)}M
+                <span
+                  style={{ fontSize: 11, color: "#555", fontFamily: FONT_MONO }}
+                >
+                  Önceki: {cos[id].price}M
                 </span>
-                <AdjBtn onClick={() => {
-                  setEditedCos((p) => ({
-                    ...p,
-                    [id]: Math.max(1.0, +(p[id] - 0.5).toFixed(1)),
-                  }));
-                }}>−</AdjBtn>
+                <AdjBtn onClick={() => adjustCosPrice(id, -1)}>−</AdjBtn>
                 <span
                   style={{
                     fontFamily: FONT_MONO,
@@ -502,18 +509,12 @@ export default function PriceEditPanel({
                     color: val !== cos[id].price ? GOLD : "#fff",
                   }}
                 >
-                  {val.toFixed(1)}M
+                  {val}M
                 </span>
-                <AdjBtn onClick={() => {
-                  setEditedCos((p) => ({
-                    ...p,
-                    [id]: Math.max(1.0, +(p[id] + 0.5).toFixed(1)),
-                  }));
-                }}>+</AdjBtn>
+                <AdjBtn onClick={() => adjustCosPrice(id, 1)}>+</AdjBtn>
               </div>
             </div>
           ))}
-
         </div>
       </div>
 

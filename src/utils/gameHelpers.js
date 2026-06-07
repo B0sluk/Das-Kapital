@@ -7,8 +7,8 @@ export function initRes() {
       {
         amount: 2,
         base: 2,
-        buys: 0,
-        sells: 0,
+        buys: 2,
+        sells: 2,
       },
     ])
   );
@@ -20,7 +20,7 @@ export function initCos() {
       c.id,
       {
         shares: 7,
-        price: 5.0,
+        price: 7,
         buys: 7,
         sells: 5,
       },

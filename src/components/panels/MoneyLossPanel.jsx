@@ -75,7 +75,14 @@ export default function MoneyLossPanel({
           >
             KAYIP TUTARI (M)
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 12,
+            }}
+          >
             <AdjBtn onClick={() => adjustAmount(-0.5)}>−</AdjBtn>
             <input
               type="number"
@@ -83,7 +90,7 @@ export default function MoneyLossPanel({
               onChange={(e) => {
                 const val = parseFloat(e.target.value);
                 if (!isNaN(val) && val > 0 && val <= playerMuli) {
-                  setLossAmount(+(val).toFixed(2));
+                  setLossAmount(+val.toFixed(2));
                 }
               }}
               step="0.5"
@@ -114,9 +121,12 @@ export default function MoneyLossPanel({
               textAlign: "center",
             }}
           >
-            Mevcut: <span style={{ color: GOLD }}>{playerMuli.toFixed(2)}M</span>
+            Mevcut:{" "}
+            <span style={{ color: GOLD }}>{playerMuli.toFixed(2)}M</span>
             {" → "}
-            <span style={{ color: lossAmount > playerMuli ? "#e74c3c" : "#2ecc71" }}>
+            <span
+              style={{ color: lossAmount > playerMuli ? "#e74c3c" : "#2ecc71" }}
+            >
               {(playerMuli - lossAmount).toFixed(2)}M
             </span>
           </div>
@@ -141,7 +151,13 @@ export default function MoneyLossPanel({
           >
             İŞLEM ÖZETİ
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: 4,
+            }}
+          >
             <span style={{ fontSize: 11, color: "#777" }}>Kart:</span>
             <span style={{ fontSize: 11, color: "#aaa" }}>{cardName}</span>
           </div>
@@ -189,12 +205,16 @@ export default function MoneyLossPanel({
             fontSize: 16,
             letterSpacing: 2,
             background:
-              lossAmount > 0 && lossAmount <= playerMuli ? "#c0392b" : "#181818",
+              lossAmount > 0 && lossAmount <= playerMuli
+                ? "#c0392b"
+                : "#181818",
             color: lossAmount > 0 && lossAmount <= playerMuli ? "#fff" : "#444",
             border: "none",
             borderRadius: 4,
             cursor:
-              lossAmount > 0 && lossAmount <= playerMuli ? "pointer" : "default",
+              lossAmount > 0 && lossAmount <= playerMuli
+                ? "pointer"
+                : "default",
           }}
         >
           ONAYLA

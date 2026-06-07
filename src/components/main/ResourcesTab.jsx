@@ -66,25 +66,47 @@ export default function ResourcesTab({
           alignItems: "center",
         }}
       >
-        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: "#666", letterSpacing: 1 }}>
-          İŞLEM YAPAN: <span style={{ color: RED, fontFamily: FONT_TITLE, fontSize: 13, letterSpacing: 1.5 }}>{activePlayer}</span>
+        <span
+          style={{
+            fontFamily: FONT_MONO,
+            fontSize: 10,
+            color: "#666",
+            letterSpacing: 1,
+          }}
+        >
+          İŞLEM YAPAN:{" "}
+          <span
+            style={{
+              color: RED,
+              fontFamily: FONT_TITLE,
+              fontSize: 13,
+              letterSpacing: 1.5,
+            }}
+          >
+            {activePlayer}
+          </span>
         </span>
         <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: GOLD }}>
-          Bakiye: <span style={{ fontWeight: 700 }}>{currentMuli.toFixed(2)}M</span>
+          Bakiye:{" "}
+          <span style={{ fontWeight: 700 }}>{Math.floor(currentMuli)}M</span>
         </span>
       </div>
 
       {/* Resource List */}
       {RESOURCES.map((r) => {
         const d = res[r.id];
-        const bp = +(d.base * 1.5).toFixed(2);
+        const bp = Math.round(d.base * 1.5);
         const amount = currentRes[r.id] || 0;
         const isStatusDisabled = r.id === "status"; // Status kaynağı devre dışı
 
         return (
           <div
             key={r.id}
-            style={{ padding: "11px 16px", borderBottom: "1px solid #141414", opacity: isStatusDisabled ? 0.5 : 1 }}
+            style={{
+              padding: "11px 16px",
+              borderBottom: "1px solid #141414",
+              opacity: isStatusDisabled ? 0.5 : 1,
+            }}
           >
             <div
               style={{
@@ -115,7 +137,7 @@ export default function ResourcesTab({
                 >
                   AL <span style={{ color: GOLD }}>{bp}M</span>
                   {"  "}SAT{" "}
-                  <span style={{ color: GOLD }}>{d.base.toFixed(1)}M</span>
+                  <span style={{ color: GOLD }}>{d.base}M</span>
                   {d.buys % 3 !== 0 && d.buys > 0 && (
                     <span style={{ color: "#e74c3c", marginLeft: 8 }}>
                       ↑{d.buys % 3}/3

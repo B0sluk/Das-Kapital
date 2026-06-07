@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import GlobalStyle from "./components/GlobalStyle";
 import NameScreen from "./components/lobby/NameScreen";
 import LobbyScreen from "./components/lobby/LobbyScreen";
@@ -35,9 +35,7 @@ export default function App() {
 
   // Dynamic players list
   const [players, setPlayers] = useState(["SEN"]);
-  const [activePlayer, setActivePlayer] = useState("SEN"); // UI: hangi oyuncunun verisi gösteriliyor
-  const [turnPlayer, setTurnPlayer] = useState("SEN");     // Sıra kimin (Firebase'den)
-  const firebaseTurnPlayerRef = useRef(null);
+  const [activePlayer, setActivePlayer] = useState("SEN");
 
   // Game state
   const [playerMulis, setPlayerMulis] = useState({});
@@ -68,15 +66,8 @@ export default function App() {
   // Money loss state
   const [moneyLossCard, setMoneyLossCard] = useState(null);
 
-  // Money edit panel state
-  const [moneyEditTarget, setMoneyEditTarget] = useState(null);
-
   // Toast notification state
   const [toast, setToast] = useState(null);
-
-  // Price vote state (Firebase-synced)
-  const [priceVote, setPriceVote] = useState(null);
-  const [activeVote, setActiveVote] = useState(null);
 
   // Rate limiting - prevent spam actions
   const [lastActionTime, setLastActionTime] = useState(0);
@@ -118,9 +109,10 @@ export default function App() {
       }
       if (data.quarter) setQuarter(data.quarter);
       if (data.firstPlayer) setFirstPlayer(data.firstPlayer);
-      if (data.activePlayer && data.activePlayer !== firebaseTurnPlayerRef.current) {
-        firebaseTurnPlayerRef.current = data.activePlayer;
-        setTurnPlayer(data.activePlayer);
+      // Only update activePlayer during phase/quarter transitions, not on every change
+      // This prevents the view from jumping when other players make trades
+      if (data.status !== phase || data.quarter !== quarter) {
+        if (data.activePlayer) setActivePlayer(data.activePlayer);
       }
       if (data.playerMulis) setPlayerMulis(data.playerMulis);
       if (data.playerRes) setPlayerRes(data.playerRes);
@@ -132,22 +124,6 @@ export default function App() {
         setActiveCards(data.activeCards || []);
       if (data.votes) setVotes(data.votes || {});
       if (data.nextFP !== undefined) setNextFP(data.nextFP);
-      if (data.priceVote !== undefined) {
-        const newPV = data.priceVote || null;
-        setPriceVote(newPV);
-        if (newPV?.active) {
-          setView((v) => (v === "price-edit" ? v : "price-edit"));
-        }
-      }
-      const incomingVote = data.activeVote || null;
-      setActiveVote((prev) => {
-        if (incomingVote !== prev) {
-          if (incomingVote === "quarter") {
-            setView((v) => (v === "quarter-vote" ? v : "quarter-vote"));
-          }
-        }
-        return incomingVote;
-      });
     });
 
     return () => unsubscribe();
@@ -168,6 +144,15 @@ export default function App() {
     }
   }, [notifs]);
 
+  // Otomatik Quarter Oylama Ekranına Geçiş
+  useEffect(() => {
+    if (Object.keys(votes).length > 0 && view !== "quarter-vote") {
+      setView("quarter-vote");
+    } else if (Object.keys(votes).length === 0 && view === "quarter-vote") {
+      setView("main");
+    }
+  }, [votes, view]);
+
   // General state update mechanism
   function updateGameData(updates) {
     if (db && sessionCode) {
@@ -186,10 +171,9 @@ export default function App() {
         setActiveCards(updates.activeCards);
       if (updates.votes) setVotes(updates.votes);
       if (updates.nextFP !== undefined) setNextFP(updates.nextFP);
-      if (updates.priceVote !== undefined) setPriceVote(updates.priceVote || null);
       if (updates.quarter) setQuarter(updates.quarter);
       if (updates.firstPlayer) setFirstPlayer(updates.firstPlayer);
-      if (updates.activePlayer) setTurnPlayer(updates.activePlayer);
+      if (updates.activePlayer) setActivePlayer(updates.activePlayer);
     }
   }
 
@@ -248,10 +232,8 @@ export default function App() {
         });
       } else {
         // Join existing Lobby
-        get(lobbyRef).then((snapshot) => {
-          const lobbyData = snapshot.val() || {};
-          const currentPlayers = lobbyData.players || [];
-          const currentStatus = lobbyData.status || "lobby";
+        get(ref(db, `lobbies/${code}/players`)).then((snapshot) => {
+          const currentPlayers = snapshot.val() || [];
           if (!currentPlayers.includes(name)) {
             const updated = [...currentPlayers, name];
             update(lobbyRef, { players: updated }).then(() => {
@@ -259,9 +241,10 @@ export default function App() {
               setPhase("lobby");
             });
           } else {
-            // Rejoin: player already in list (dropped and reconnecting)
-            setPlayers(currentPlayers);
-            setPhase(currentStatus);
+            alert(
+              `"${name}" adlı oyuncu zaten bu lobiye katılmış! Lütfen farklı bir isim seçin.`,
+            );
+            return;
           }
         });
       }
@@ -305,18 +288,22 @@ export default function App() {
     const initialPlayerMulis = {};
 
     players.forEach((p) => {
-      initialPlayerMulis[p] = 10.0;
+      initialPlayerMulis[p] = 10;
       initialPlayerRes[p] = Object.fromEntries(
         RESOURCES.map((r) => [r.id, r.id === "waste" ? 0 : 2]),
       );
       initialPlayerCos[p] = Object.fromEntries(COMPANIES.map((c) => [c.id, 0]));
     });
 
-    // Random starting player for turn system
-    const randomStartPlayer = getRandomElement(players);
+    // İlk lobiyi kuran oyuncu (players[0]) sırayla başlar
+    const startPlayer = players[0];
 
     const initialNotifs = [
-      { id: Date.now(), msg: `🎲 Oyun başladı! İlk Oyuncu: ${randomStartPlayer}. İyi şanslar, işçi.`, t: ts() },
+      {
+        id: Date.now(),
+        msg: `🎲 Oyun başladı! İlk Oyuncu: ${startPlayer}. İyi şanslar, işçi.`,
+        t: ts(),
+      },
     ];
 
     if (db) {
@@ -329,8 +316,8 @@ export default function App() {
         playerCos: initialPlayerCos,
         notifs: initialNotifs,
         quarter: 1,
-        firstPlayer: randomStartPlayer,
-        activePlayer: randomStartPlayer,
+        firstPlayer: startPlayer,
+        activePlayer: startPlayer,
       });
     } else {
       setPlayerMulis(initialPlayerMulis);
@@ -339,9 +326,8 @@ export default function App() {
       setRes(initialRes);
       setCos(initialCos);
       setNotifs(initialNotifs);
-      setFirstPlayer(randomStartPlayer);
-      setTurnPlayer(randomStartPlayer);
-      setActivePlayer(randomStartPlayer);
+      setFirstPlayer(startPlayer);
+      setActivePlayer(startPlayer);
       setPhase("game");
     }
   }
@@ -360,7 +346,7 @@ export default function App() {
     }
     setLastActionTime(now);
 
-    const price = +(res[id].base * 1.5).toFixed(2);
+    const price = Math.round(res[id].base * 1.5);
     const muli = playerMulis[player] || 0;
     if (muli < price) {
       notify(`⚠ ${player}: Yetersiz Muli`);
@@ -369,7 +355,7 @@ export default function App() {
 
     const updatedMulis = {
       ...playerMulis,
-      [player]: +(muli - price).toFixed(2),
+      [player]: muli - price,
     };
 
     const updatedRes = {
@@ -414,7 +400,7 @@ export default function App() {
 
     const updatedMulis = {
       ...playerMulis,
-      [player]: +(playerMulis[player] + price).toFixed(2),
+      [player]: (playerMulis[player] || 0) + price,
     };
 
     const updatedRes = {
@@ -510,7 +496,7 @@ export default function App() {
     }
     setLastActionTime(now);
 
-    const price = +(cos[id].price * 1.5).toFixed(2);
+    const price = Math.round(cos[id].price * 1.5);
     const muli = playerMulis[player] || 0;
     if (muli < price) {
       notify(`⚠ ${player}: Yetersiz Muli`);
@@ -519,7 +505,7 @@ export default function App() {
 
     const updatedMulis = {
       ...playerMulis,
-      [player]: +(muli - price).toFixed(2),
+      [player]: muli - price,
     };
 
     const updatedCos = {
@@ -564,7 +550,7 @@ export default function App() {
 
     const updatedMulis = {
       ...playerMulis,
-      [player]: +(playerMulis[player] + price).toFixed(2),
+      [player]: (playerMulis[player] || 0) + price,
     };
 
     const updatedCos = {
@@ -594,7 +580,7 @@ export default function App() {
 
   // Trade
   function startSend(player) {
-    if (myName !== turnPlayer) {
+    if (myName !== activePlayer) {
       notify("Sadece kendini için aksiyon alabilirsin!");
       return;
     }
@@ -611,10 +597,10 @@ export default function App() {
   }
 
   function adjustBasket(id, delta) {
-    const myAmount = playerRes[myName]?.[id] || 0;
+    const activePlayerAmount = playerRes[activePlayer]?.[id] || 0;
     setBasket((b) => ({
       ...b,
-      [id]: Math.max(0, Math.min(myAmount, (b[id] || 0) + delta)),
+      [id]: Math.max(0, Math.min(activePlayerAmount, (b[id] || 0) + delta)),
     }));
   }
 
@@ -629,15 +615,15 @@ export default function App() {
     if (!items.length) return;
 
     const updatedRes = { ...playerRes };
-    const myRes = { ...playerRes[myName] };
+    const activeRes = { ...playerRes[activePlayer] };
     const targetRes = { ...playerRes[sendTo] };
 
     items.forEach(([id, amt]) => {
-      myRes[id] = Math.max(0, myRes[id] - amt);
+      activeRes[id] = Math.max(0, activeRes[id] - amt);
       targetRes[id] = (targetRes[id] || 0) + amt;
     });
 
-    updatedRes[myName] = myRes;
+    updatedRes[activePlayer] = activeRes;
     updatedRes[sendTo] = targetRes;
 
     updateGameData({ playerRes: updatedRes });
@@ -646,7 +632,7 @@ export default function App() {
       .map(([id, amt]) => `${amt}×${RESOURCES.find((r) => r.id === id).name}`)
       .join(", ");
 
-    notify(`💸 TRANSFER: ${myName} → ${sendTo}: ${desc}`);
+    notify(`💸 TRANSFER: ${activePlayer} → ${sendTo}: ${desc}`);
     setView("main");
     setSendTo(null);
     setBasket({});
@@ -654,7 +640,7 @@ export default function App() {
 
   // Cards
   function toggleCard(cardId) {
-    if (myName !== turnPlayer) {
+    if (myName !== activePlayer) {
       notify("Sıran değil!");
       return;
     }
@@ -675,7 +661,7 @@ export default function App() {
     } else {
       // Find the card details
       const card = ALL_CARDS.find((c) => c.id === cardId);
-      
+
       if (!card) return;
 
       // Check if it's a policy or event card (requires voting)
@@ -692,7 +678,7 @@ export default function App() {
   }
 
   function toggleUsed(cardId) {
-    if (myName !== turnPlayer) {
+    if (myName !== activePlayer) {
       notify("Sıran değil!");
       return;
     }
@@ -784,50 +770,51 @@ export default function App() {
     setView("main");
   }
 
-  function adjustMoney(player, amount) {
-    const current = playerMulis[player] || 0;
-    const newVal = Math.max(0, +(current + amount).toFixed(2));
-    const updatedMulis = { ...playerMulis, [player]: newVal };
-    updateGameData({ playerMulis: updatedMulis });
-    const sign = amount >= 0 ? "+" : "";
-    notify(`💰 ${player} PARA: ${sign}${amount.toFixed(2)}M → Yeni bakiye: ${newVal.toFixed(2)}M`);
-  }
-
   // Skip turn
   function skipTurn() {
-    if (!players || players.length === 0) return;
+    if (!players || players.length === 0) {
+      notify("Oyuncu listesi yüklenmedi!");
+      return;
+    }
 
-    if (myName !== turnPlayer) {
+    if (myName !== activePlayer) {
       notify("Sıran değil!");
       return;
     }
 
     const now = Date.now();
-    if (now - lastActionTime < RATE_LIMIT_MS) return;
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
     setLastActionTime(now);
 
-    const idx = players.indexOf(turnPlayer);
-    const nextPlayer = players[(idx + 1) % players.length];
-
-    // Ref'i hemen güncelle, listener tekrar eski değeri yazmasın
-    firebaseTurnPlayerRef.current = nextPlayer;
-    setTurnPlayer(nextPlayer);
-
-    if (db && sessionCode) {
-      update(ref(db, `lobbies/${sessionCode}`), { activePlayer: nextPlayer }).catch((err) => {
-        console.error("Firebase update error:", err);
-        notify("Sıra geçme başarısız!");
-        firebaseTurnPlayerRef.current = turnPlayer;
-        setTurnPlayer(turnPlayer);
-      });
+    // Move to next player
+    const playerIndex = players.indexOf(activePlayer);
+    if (playerIndex === -1) {
+      notify("Mevcut oyuncu listede bulunamadı!");
+      return;
     }
 
-    notify(`⏭️ ${myName} SIRAYI GEÇTİ. Şimdi sıra: ${nextPlayer}`);
+    const nextIndex = (playerIndex + 1) % players.length;
+    const nextPlayer = players[nextIndex];
+
+    if (db && sessionCode) {
+      update(ref(db, `lobbies/${sessionCode}`), {
+        activePlayer: nextPlayer,
+      }).catch((err) => {
+        console.error("Firebase update error:", err);
+        notify("Sıra geçme başarısız!");
+      });
+    } else {
+      setActivePlayer(nextPlayer);
+    }
+
+    notify(`⏭️ ${activePlayer} SIRAYI GEÇTİ. Şimdi sıra: ${nextPlayer}`);
   }
 
   // Quarter vote
   function startVote() {
-    if (myName !== turnPlayer) {
+    if (myName !== activePlayer) {
       notify("Sıran değil!");
       return;
     }
@@ -842,7 +829,6 @@ export default function App() {
     updateGameData({
       votes: initialVotes,
       nextFP: null,
-      activeVote: "quarter",
     });
     setView("quarter-vote");
   }
@@ -873,7 +859,7 @@ export default function App() {
   }
 
   function finalizeQuarter() {
-    if (myName !== turnPlayer) {
+    if (myName !== activePlayer) {
       notify("Sıran değil!");
       return;
     }
@@ -893,30 +879,19 @@ export default function App() {
       votes: {},
       nextFP: null,
       status: "game",
-      activeVote: null,
     });
     notify(`📢 Q${nextQ} başladı. First Player: ${nextFP}`);
     setView("main");
     setTab("res");
   }
 
-  function handleStartPriceVote(proposedRes, proposedResBuySell, proposedCos, proposedCosBuySell) {
-    updateGameData({
-      activeVote: "price",
-      priceVote: {
-        active: true,
-        proposed: {
-          res: proposedRes,
-          resBuySell: proposedResBuySell,
-          cos: proposedCos,
-          cosBuySell: proposedCosBuySell,
-        },
-      },
-    });
-  }
+  // Price proposer / editor — sadece base/price fiyat güncellenir, al/sat kaynakla eşitlenir
+  function handleProposePrices(proposedRes, proposedCos) {
+    if (myName !== activePlayer) {
+      notify("Sıran değil!");
+      return;
+    }
 
-  // Price proposer / editor
-  function handleProposePrices(proposedRes, proposedResBuySell, proposedCos, proposedCosBuySell) {
     const now = Date.now();
     if (now - lastActionTime < RATE_LIMIT_MS) {
       return;
@@ -926,17 +901,10 @@ export default function App() {
     const nextResData = { ...res };
     Object.entries(proposedRes).forEach(([id, basePrice]) => {
       if (nextResData[id]) {
+        // Kaynaklar için al=sat=base fiyat
         nextResData[id] = { ...nextResData[id], base: basePrice };
       }
     });
-    // Apply buy/sell for resources (should be same)
-    if (proposedResBuySell) {
-      Object.entries(proposedResBuySell).forEach(([id, { buys, sells }]) => {
-        if (nextResData[id]) {
-          nextResData[id] = { ...nextResData[id], buys, sells };
-        }
-      });
-    }
 
     const nextCosData = { ...cos };
     Object.entries(proposedCos).forEach(([id, sharePrice]) => {
@@ -944,23 +912,32 @@ export default function App() {
         nextCosData[id] = { ...nextCosData[id], price: sharePrice };
       }
     });
-    // Apply buy/sell for companies
-    if (proposedCosBuySell) {
-      Object.entries(proposedCosBuySell).forEach(([id, { buys, sells }]) => {
-        if (nextCosData[id]) {
-          nextCosData[id] = { ...nextCosData[id], buys, sells };
-        }
-      });
-    }
 
     updateGameData({
       res: nextResData,
       cos: nextCosData,
-      activeVote: null,
-      priceVote: null,
     });
 
     notify("🔔 FİYAT GÜNCELLEMESİ: Yeni piyasa fiyatları onaylandı!");
+  }
+
+  // Para ekleme/çıkarma
+  function adjustMoney(player, delta) {
+    // delta tam sayı olmalı
+    const intDelta = Math.round(delta);
+    if (intDelta === 0) return;
+
+    const now = Date.now();
+    if (now - lastActionTime < RATE_LIMIT_MS) {
+      return;
+    }
+    setLastActionTime(now);
+
+    const current = playerMulis[player] || 0;
+    const newVal = Math.max(0, current + intDelta);
+    const updatedMulis = { ...playerMulis, [player]: newVal };
+    updateGameData({ playerMulis: updatedMulis });
+    notify(`💵 PARA: ${player} ${intDelta > 0 ? "+" : ""}${intDelta}M (Yeni: ${newVal}M)`);
   }
 
   // Market card purchase deduction
@@ -1005,7 +982,7 @@ export default function App() {
 
     const updatedCards = [...activeCards, marketCard];
 
-    updateGameData({ 
+    updateGameData({
       playerMulis: updatedMulis,
       activeCards: updatedCards,
     });
@@ -1094,7 +1071,7 @@ export default function App() {
         {view === "main" && (
           <Header
             myName={myName}
-            muli={playerMulis[myName] || 0}
+            muli={playerMulis[activePlayer] || 0}
             unread={unread}
             quarter={quarter}
             firstPlayer={firstPlayer}
@@ -1102,10 +1079,7 @@ export default function App() {
               setView("notifs");
               setUnread(0);
             }}
-            onMoneyClick={() => {
-              setMoneyEditTarget(myName);
-              setView("money-edit");
-            }}
+            onMoneyClick={() => setView("money-edit")}
           />
         )}
 
@@ -1267,13 +1241,8 @@ export default function App() {
               res={res}
               cos={cos}
               players={players}
-              onClose={() => {
-                setView("main");
-                updateGameData({ activeVote: null, priceVote: null });
-              }}
+              onClose={() => setView("main")}
               onProposePrices={handleProposePrices}
-              onStartVote={handleStartPriceVote}
-              priceVote={priceVote}
             />
           </div>
         )}
@@ -1284,7 +1253,9 @@ export default function App() {
             <MarketCardPanel
               playerMuli={playerMulis[myName] || 0}
               onClose={() => setView("main")}
-              onBuyCard={(cardName, amount) => buyMarketCard(myName, cardName, amount)}
+              onBuyCard={(cardName, amount) =>
+                buyMarketCard(myName, cardName, amount)
+              }
             />
           </div>
         )}
@@ -1322,12 +1293,14 @@ export default function App() {
 
         {/* MONEY EDIT PANEL */}
         {view === "money-edit" && (
-          <MoneyEditPanel
-            players={players}
-            playerMulis={playerMulis}
-            onClose={() => setView("main")}
-            onAdjust={adjustMoney}
-          />
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <MoneyEditPanel
+              players={players}
+              playerMulis={playerMulis}
+              onClose={() => setView("main")}
+              onAdjust={adjustMoney}
+            />
+          </div>
         )}
 
         {/* BOTTOM BAR */}
@@ -1339,6 +1312,7 @@ export default function App() {
             onPriceEditClick={() => setView("price-edit")}
             onQuarterChange={startVote}
             onPlayersClick={() => setView("players")}
+            onMoneyEditClick={() => setView("money-edit")}
           />
         )}
       </div>

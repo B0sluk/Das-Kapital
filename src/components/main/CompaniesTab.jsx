@@ -78,18 +78,36 @@ export default function CompaniesTab({
           alignItems: "center",
         }}
       >
-        <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: "#666", letterSpacing: 1 }}>
-          İŞLEM YAPAN: <span style={{ color: RED, fontFamily: FONT_TITLE, fontSize: 13, letterSpacing: 1.5 }}>{activePlayer}</span>
+        <span
+          style={{
+            fontFamily: FONT_MONO,
+            fontSize: 10,
+            color: "#666",
+            letterSpacing: 1,
+          }}
+        >
+          İŞLEM YAPAN:{" "}
+          <span
+            style={{
+              color: RED,
+              fontFamily: FONT_TITLE,
+              fontSize: 13,
+              letterSpacing: 1.5,
+            }}
+          >
+            {activePlayer}
+          </span>
         </span>
         <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: GOLD }}>
-          Bakiye: <span style={{ fontWeight: 700 }}>{currentMuli.toFixed(2)}M</span>
+          Bakiye:{" "}
+          <span style={{ fontWeight: 700 }}>{Math.floor(currentMuli)}M</span>
         </span>
       </div>
 
       {/* Company List */}
       {COMPANIES.map((c) => {
         const d = cos[c.id];
-        const bp = +(d.price * 1.5).toFixed(2);
+        const bp = Math.round(d.price * 1.5);
         const top3 = getTop3(c.id);
         const sharesOwned = currentShares[c.id] || 0;
 
@@ -286,7 +304,8 @@ export default function CompaniesTab({
                   letterSpacing: 1.5,
                   background: "#141414",
                   color: sharesOwned < 1 ? "#2a2a2a" : "#888",
-                  border: sharesOwned < 1 ? "1px solid #1a1a1a" : "1px solid #272727",
+                  border:
+                    sharesOwned < 1 ? "1px solid #1a1a1a" : "1px solid #272727",
                   borderRadius: 3,
                   cursor: sharesOwned < 1 ? "default" : "pointer",
                 }}

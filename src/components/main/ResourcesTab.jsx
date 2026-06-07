@@ -138,16 +138,6 @@ export default function ResourcesTab({
                   AL <span style={{ color: GOLD }}>{bp}M</span>
                   {"  "}SAT{" "}
                   <span style={{ color: GOLD }}>{d.base}M</span>
-                  {d.buys % 3 !== 0 && d.buys > 0 && (
-                    <span style={{ color: "#e74c3c", marginLeft: 8 }}>
-                      ↑{d.buys % 3}/3
-                    </span>
-                  )}
-                  {d.sells % 3 !== 0 && d.sells > 0 && (
-                    <span style={{ color: "#3498db", marginLeft: 8 }}>
-                      ↓{d.sells % 3}/3
-                    </span>
-                  )}
                 </div>
               </div>
               <span

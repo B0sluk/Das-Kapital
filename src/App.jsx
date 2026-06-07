@@ -36,6 +36,7 @@ export default function App() {
   // Dynamic players list
   const [players, setPlayers] = useState(["SEN"]);
   const [activePlayer, setActivePlayer] = useState("SEN");
+  const [turnPlayer, setTurnPlayer] = useState("SEN");
 
   // Game state
   const [playerMulis, setPlayerMulis] = useState({});
@@ -126,6 +127,7 @@ export default function App() {
       }
       if (data.quarter) setQuarter(data.quarter);
       if (data.firstPlayer) setFirstPlayer(data.firstPlayer);
+      if (data.turnPlayer) setTurnPlayer(data.turnPlayer);
       // Only update activePlayer during phase/quarter transitions, not on every change
       // This prevents the view from jumping when other players make trades
       if (data.status !== phase || data.quarter !== quarter) {
@@ -190,6 +192,7 @@ export default function App() {
       if (updates.nextFP !== undefined) setNextFP(updates.nextFP);
       if (updates.quarter) setQuarter(updates.quarter);
       if (updates.firstPlayer) setFirstPlayer(updates.firstPlayer);
+      if (updates.turnPlayer) setTurnPlayer(updates.turnPlayer);
       if (updates.activePlayer) setActivePlayer(updates.activePlayer);
     }
   }
@@ -336,6 +339,7 @@ export default function App() {
         notifs: initialNotifs,
         quarter: 1,
         firstPlayer: startPlayer,
+        turnPlayer: startPlayer,
         activePlayer: startPlayer,
       });
     } else {
@@ -346,6 +350,7 @@ export default function App() {
       setCos(initialCos);
       setNotifs(initialNotifs);
       setFirstPlayer(startPlayer);
+      setTurnPlayer(startPlayer);
       setActivePlayer(startPlayer);
       setPhase("game");
     }
@@ -353,7 +358,11 @@ export default function App() {
 
   // Resource actions
   function buyRes(player, id) {
-    if (myName !== player) {
+    if (player !== turnPlayer) {
+      notify("Sadece sırası gelen oyuncu alım/satım yapabilir!");
+      return;
+    }
+    if (myName !== player && !isHost) {
       notify("Sadece kendini için aksiyon alabilirsin!");
       return;
     }
@@ -386,9 +395,7 @@ export default function App() {
     };
 
     const nextResData = { ...res };
-    const n = { ...res[id], buys: res[id].buys + 1 };
-    if (n.buys > 0 && n.buys % 3 === 0) n.base = +(n.base + 1).toFixed(1);
-    nextResData[id] = n;
+    nextResData[id] = { ...res[id], buys: res[id].buys + 1 };
 
     updateGameData({
       playerMulis: updatedMulis,
@@ -402,7 +409,11 @@ export default function App() {
   }
 
   function sellRes(player, id) {
-    if (myName !== player) {
+    if (player !== turnPlayer) {
+      notify("Sadece sırası gelen oyuncu alım/satım yapabilir!");
+      return;
+    }
+    if (myName !== player && !isHost) {
       notify("Sadece kendini için aksiyon alabilirsin!");
       return;
     }
@@ -431,10 +442,7 @@ export default function App() {
     };
 
     const nextResData = { ...res };
-    const n = { ...res[id], sells: res[id].sells + 1 };
-    if (n.sells > 0 && n.sells % 3 === 0 && n.base > 0.5)
-      n.base = +(n.base - 1).toFixed(1);
-    nextResData[id] = n;
+    nextResData[id] = { ...res[id], sells: res[id].sells + 1 };
 
     updateGameData({
       playerMulis: updatedMulis,
@@ -504,7 +512,11 @@ export default function App() {
 
   // Company actions
   function buyShare(player, id) {
-    if (myName !== player) {
+    if (player !== turnPlayer) {
+      notify("Sadece sırası gelen oyuncu alım/satım yapabilir!");
+      return;
+    }
+    if (myName !== player && !isHost) {
       notify("Sadece kendini için aksiyon alabilirsin!");
       return;
     }
@@ -536,9 +548,7 @@ export default function App() {
     };
 
     const nextCosData = { ...cos };
-    const n = { ...cos[id], buys: cos[id].buys + 1 };
-    if (n.buys > 0 && n.buys % 3 === 0) n.price = +(n.price + 1).toFixed(1);
-    nextCosData[id] = n;
+    nextCosData[id] = { ...cos[id], buys: cos[id].buys + 1 };
 
     updateGameData({
       playerMulis: updatedMulis,
@@ -552,7 +562,11 @@ export default function App() {
   }
 
   function sellShare(player, id) {
-    if (myName !== player) {
+    if (player !== turnPlayer) {
+      notify("Sadece sırası gelen oyuncu alım/satım yapabilir!");
+      return;
+    }
+    if (myName !== player && !isHost) {
       notify("Sadece kendini için aksiyon alabilirsin!");
       return;
     }
@@ -581,10 +595,7 @@ export default function App() {
     };
 
     const nextCosData = { ...cos };
-    const n = { ...cos[id], sells: cos[id].sells + 1 };
-    if (n.sells > 0 && n.sells % 3 === 0 && n.price > 1)
-      n.price = +(n.price - 1).toFixed(1);
-    nextCosData[id] = n;
+    nextCosData[id] = { ...cos[id], sells: cos[id].sells + 1 };
 
     updateGameData({
       playerMulis: updatedMulis,
@@ -796,7 +807,7 @@ export default function App() {
       return;
     }
 
-    if (myName !== activePlayer) {
+    if (myName !== turnPlayer && !isHost) {
       notify("Sıran değil!");
       return;
     }
@@ -808,7 +819,7 @@ export default function App() {
     setLastActionTime(now);
 
     // Move to next player
-    const playerIndex = players.indexOf(activePlayer);
+    const playerIndex = players.indexOf(turnPlayer);
     if (playerIndex === -1) {
       notify("Mevcut oyuncu listede bulunamadı!");
       return;
@@ -819,16 +830,18 @@ export default function App() {
 
     if (db && sessionCode) {
       update(ref(db, `lobbies/${sessionCode}`), {
+        turnPlayer: nextPlayer,
         activePlayer: nextPlayer,
       }).catch((err) => {
         console.error("Firebase update error:", err);
         notify("Sıra geçme başarısız!");
       });
     } else {
+      setTurnPlayer(nextPlayer);
       setActivePlayer(nextPlayer);
     }
 
-    notify(`⏭️ ${activePlayer} SIRAYI GEÇTİ. Şimdi sıra: ${nextPlayer}`);
+    notify(`⏭️ ${turnPlayer} SIRAYI GEÇTİ. Şimdi sıra: ${nextPlayer}`);
   }
 
   // Quarter vote

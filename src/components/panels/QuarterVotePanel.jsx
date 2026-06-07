@@ -10,13 +10,14 @@ export default function QuarterVotePanel({
   onFinalizeQuarter,
   onCancel,
 }) {
+  const voteValues = players.map((player) => votes[player] || "pending");
   const allVoted =
-    Object.keys(votes).length > 0 &&
-    Object.values(votes).every((v) => v !== null);
-  const approvedCount = Object.values(votes).filter(
+    players.length > 0 &&
+    voteValues.every((v) => v === "approved" || v === "rejected");
+  const approvedCount = voteValues.filter(
     (v) => v === "approved",
   ).length;
-  const rejectedCount = Object.values(votes).filter(
+  const rejectedCount = voteValues.filter(
     (v) => v === "rejected",
   ).length;
 
@@ -74,7 +75,7 @@ export default function QuarterVotePanel({
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
         {players.map((p) => {
-          const v = votes[p];
+          const v = votes[p] || "pending";
           const isSen = p === "SEN";
           return (
             <div
@@ -100,7 +101,7 @@ export default function QuarterVotePanel({
               >
                 {p}
               </span>
-              {v === null && (
+              {v === "pending" && (
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
                     onClick={() => onCastVote(p, false)}
@@ -255,6 +256,7 @@ export default function QuarterVotePanel({
         </button>
         <button
           onClick={onFinalizeQuarter}
+          disabled={!isMajorityApproved || !nextFP}
           style={{
             flex: 1,
             padding: "10px",

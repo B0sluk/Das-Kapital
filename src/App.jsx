@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import GlobalStyle from "./components/GlobalStyle";
 import NameScreen from "./components/lobby/NameScreen";
 import LobbyScreen from "./components/lobby/LobbyScreen";
@@ -37,6 +37,8 @@ export default function App() {
   const [players, setPlayers] = useState(["SEN"]);
   const [activePlayer, setActivePlayer] = useState("SEN");
   const [turnPlayer, setTurnPlayer] = useState("SEN");
+  const [hasPassedTurn, setHasPassedTurn] = useState(false);
+  const previousTurnPlayer = useRef("SEN");
 
   // Game state
   const [playerMulis, setPlayerMulis] = useState({});
@@ -141,12 +143,29 @@ export default function App() {
       if (data.notifs) setNotifs(data.notifs);
       if (data.activeCards !== undefined)
         setActiveCards(data.activeCards || []);
-      if (data.votes) setVotes(data.votes || {});
-      if (data.nextFP !== undefined) setNextFP(data.nextFP);
+      setVotes(data.votes || {});
+      setNextFP(data.nextFP ?? null);
     });
 
     return () => unsubscribe();
   }, [db, sessionCode, phase, quarter]);
+
+  // Follow the current turn once, while still allowing manual profile browsing.
+  useEffect(() => {
+    if (phase === "game" && turnPlayer) {
+      setActivePlayer(turnPlayer);
+    }
+
+    if (
+      myName &&
+      turnPlayer === myName &&
+      previousTurnPlayer.current !== myName
+    ) {
+      setHasPassedTurn(false);
+    }
+
+    previousTurnPlayer.current = turnPlayer;
+  }, [turnPlayer, myName, phase]);
 
   // Toast notifier sync on new notifications from Firebase
   const [prevNotifId, setPrevNotifId] = useState(0);
@@ -188,13 +207,17 @@ export default function App() {
       if (updates.notifs) setNotifs(updates.notifs);
       if (updates.activeCards !== undefined)
         setActiveCards(updates.activeCards);
-      if (updates.votes) setVotes(updates.votes);
+      if (updates.votes !== undefined) setVotes(updates.votes || {});
       if (updates.nextFP !== undefined) setNextFP(updates.nextFP);
       if (updates.quarter) setQuarter(updates.quarter);
       if (updates.firstPlayer) setFirstPlayer(updates.firstPlayer);
       if (updates.turnPlayer) setTurnPlayer(updates.turnPlayer);
       if (updates.activePlayer) setActivePlayer(updates.activePlayer);
     }
+  }
+
+  function canControlTurnPlayer(player) {
+    return player === turnPlayer && (myName === player || isHost);
   }
 
   function notify(msg) {
@@ -358,12 +381,8 @@ export default function App() {
 
   // Resource actions
   function buyRes(player, id) {
-    if (player !== turnPlayer) {
-      notify("Sadece sırası gelen oyuncu alım/satım yapabilir!");
-      return;
-    }
-    if (myName !== player && !isHost) {
-      notify("Sadece kendini için aksiyon alabilirsin!");
+    if (!canControlTurnPlayer(player)) {
+      notify("Sadece sırası gelen oyuncu işlem yapabilir!");
       return;
     }
 
@@ -409,12 +428,8 @@ export default function App() {
   }
 
   function sellRes(player, id) {
-    if (player !== turnPlayer) {
-      notify("Sadece sırası gelen oyuncu alım/satım yapabilir!");
-      return;
-    }
-    if (myName !== player && !isHost) {
-      notify("Sadece kendini için aksiyon alabilirsin!");
+    if (!canControlTurnPlayer(player)) {
+      notify("Sadece sırası gelen oyuncu işlem yapabilir!");
       return;
     }
 
@@ -456,8 +471,8 @@ export default function App() {
   }
 
   function earnRes(player, id) {
-    if (myName !== player) {
-      notify("Sadece kendini için aksiyon alabilirsin!");
+    if (!canControlTurnPlayer(player)) {
+      notify("Sadece sırası gelen oyuncu işlem yapabilir!");
       return;
     }
 
@@ -482,8 +497,8 @@ export default function App() {
   }
 
   function spendRes(player, id) {
-    if (myName !== player) {
-      notify("Sadece kendini için aksiyon alabilirsin!");
+    if (!canControlTurnPlayer(player)) {
+      notify("Sadece sırası gelen oyuncu işlem yapabilir!");
       return;
     }
 
@@ -512,12 +527,8 @@ export default function App() {
 
   // Company actions
   function buyShare(player, id) {
-    if (player !== turnPlayer) {
-      notify("Sadece sırası gelen oyuncu alım/satım yapabilir!");
-      return;
-    }
-    if (myName !== player && !isHost) {
-      notify("Sadece kendini için aksiyon alabilirsin!");
+    if (!canControlTurnPlayer(player)) {
+      notify("Sadece sırası gelen oyuncu işlem yapabilir!");
       return;
     }
 
@@ -562,12 +573,8 @@ export default function App() {
   }
 
   function sellShare(player, id) {
-    if (player !== turnPlayer) {
-      notify("Sadece sırası gelen oyuncu alım/satım yapabilir!");
-      return;
-    }
-    if (myName !== player && !isHost) {
-      notify("Sadece kendini için aksiyon alabilirsin!");
+    if (!canControlTurnPlayer(player)) {
+      notify("Sadece sırası gelen oyuncu işlem yapabilir!");
       return;
     }
 
@@ -807,7 +814,7 @@ export default function App() {
       return;
     }
 
-    if (myName !== turnPlayer && !isHost) {
+    if (myName !== turnPlayer || hasPassedTurn) {
       notify("Sıran değil!");
       return;
     }
@@ -827,6 +834,8 @@ export default function App() {
 
     const nextIndex = (playerIndex + 1) % players.length;
     const nextPlayer = players[nextIndex];
+    setHasPassedTurn(true);
+    setActivePlayer(nextPlayer);
 
     if (db && sessionCode) {
       update(ref(db, `lobbies/${sessionCode}`), {
@@ -834,6 +843,8 @@ export default function App() {
         activePlayer: nextPlayer,
       }).catch((err) => {
         console.error("Firebase update error:", err);
+        setHasPassedTurn(false);
+        setActivePlayer(turnPlayer);
         notify("Sıra geçme başarısız!");
       });
     } else {
@@ -846,7 +857,7 @@ export default function App() {
 
   // Quarter vote
   function startVote() {
-    if (myName !== activePlayer) {
+    if (!canControlTurnPlayer(activePlayer)) {
       notify("Sıran değil!");
       return;
     }
@@ -857,7 +868,10 @@ export default function App() {
     }
     setLastActionTime(now);
 
-    const initialVotes = Object.fromEntries(players.map((p) => [p, null]));
+    // Firebase null values delete keys, so pending votes need a real value.
+    const initialVotes = Object.fromEntries(
+      players.map((p) => [p, "pending"]),
+    );
     updateGameData({
       votes: initialVotes,
       nextFP: null,
@@ -890,8 +904,30 @@ export default function App() {
     updateGameData({ votes: updatedVotes });
   }
 
+  function selectNextFirstPlayer(player) {
+    if (!canControlTurnPlayer(activePlayer)) {
+      notify("Sıran değil!");
+      return;
+    }
+
+    updateGameData({ nextFP: player });
+  }
+
+  function cancelQuarterVote() {
+    if (!canControlTurnPlayer(activePlayer)) {
+      notify("Sıran değil!");
+      return;
+    }
+
+    updateGameData({
+      votes: {},
+      nextFP: null,
+    });
+    setView("main");
+  }
+
   function finalizeQuarter() {
-    if (myName !== activePlayer) {
+    if (!canControlTurnPlayer(activePlayer)) {
       notify("Sıran değil!");
       return;
     }
@@ -902,11 +938,28 @@ export default function App() {
     }
     setLastActionTime(now);
 
-    if (!nextFP) return;
+    const voteValues = players.map((player) => votes[player]);
+    const allVoted = voteValues.every(
+      (vote) => vote === "approved" || vote === "rejected",
+    );
+    const approvedCount = voteValues.filter(
+      (vote) => vote === "approved",
+    ).length;
+    const rejectedCount = voteValues.filter(
+      (vote) => vote === "rejected",
+    ).length;
+
+    if (!allVoted || approvedCount <= rejectedCount || !nextFP) {
+      notify("Quarter geçişi için çoğunluk onayı ve First Player seçimi gerekli!");
+      return;
+    }
+
     const nextQ = quarter + 1;
     updateGameData({
       quarter: nextQ,
       firstPlayer: nextFP,
+      turnPlayer: nextFP,
+      activePlayer: nextFP,
       activeCards: [],
       votes: {},
       nextFP: null,
@@ -1259,9 +1312,9 @@ export default function App() {
               players={players}
               nextFP={nextFP}
               onCastVote={castVote}
-              onSetNextFP={setNextFP}
+              onSetNextFP={selectNextFirstPlayer}
               onFinalizeQuarter={finalizeQuarter}
-              onCancel={() => setView("main")}
+              onCancel={cancelQuarterVote}
             />
           </div>
         )}
@@ -1340,6 +1393,7 @@ export default function App() {
           <BottomBar
             activeCardsCount={activeCards.length}
             onSkipTurn={skipTurn}
+            canSkipTurn={myName === turnPlayer && !hasPassedTurn}
             onMarketCardClick={() => setView("market-card")}
             onPriceEditClick={() => setView("price-edit")}
             onQuarterChange={startVote}

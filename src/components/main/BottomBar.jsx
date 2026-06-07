@@ -3,6 +3,7 @@ import { FONT_TITLE, FONT_MONO, RED } from "../../constants";
 export default function BottomBar({
   activeCardsCount,
   onSkipTurn,
+  canSkipTurn = true,
   onMarketCardClick,
   onQuarterChange,
   onPriceEditClick,
@@ -22,17 +23,18 @@ export default function BottomBar({
     >
       <button
         onClick={onSkipTurn}
+        disabled={!canSkipTurn}
         style={{
           flex: 1,
           padding: "13px",
           fontFamily: FONT_TITLE,
           fontSize: 14,
           letterSpacing: 1.5,
-          background: "#130a0a",
-          color: RED,
-          border: `1px solid ${RED}30`,
+          background: canSkipTurn ? "#130a0a" : "#141414",
+          color: canSkipTurn ? RED : "#444",
+          border: `1px solid ${canSkipTurn ? RED + "30" : "#222"}`,
           borderRadius: 4,
-          cursor: "pointer",
+          cursor: canSkipTurn ? "pointer" : "default",
         }}
       >
         SIRANı GEÇ

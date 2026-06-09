@@ -17,6 +17,59 @@ body {
   overflow: hidden;
 }
 
+.game-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.bottom-action-bar {
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+  padding: 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.bottom-action-button {
+  min-width: 0;
+  padding: 13px 14px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.bottom-action-skip {
+  padding-inline: 13px;
+}
+
+.bottom-action-players {
+  padding-inline: 16px;
+  font-size: 16px;
+}
+
+@media (max-width: 420px) {
+  .bottom-action-bar {
+    gap: 4px;
+    padding: 8px 6px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .bottom-action-button {
+    flex: 1 1 0 !important;
+    padding: 10px 3px;
+    font-size: clamp(9px, 2.8vw, 12px);
+    letter-spacing: 0.3px !important;
+  }
+
+  .bottom-action-skip {
+    flex-grow: 1.35 !important;
+  }
+
+  .bottom-action-players {
+    flex-grow: 0.65 !important;
+    font-size: clamp(12px, 3.8vw, 16px);
+  }
+}
+
 @keyframes toastSlide {
   from { opacity: 0; transform: translateY(-110%); }
   to   { opacity: 1; transform: translateY(0);     }

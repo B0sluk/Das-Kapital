@@ -1138,8 +1138,8 @@ export default function App() {
       )}
 
       <div
+        className="game-shell"
         style={{
-          height: "100vh",
           display: "flex",
           flexDirection: "column",
           background: "#0a0a0a",

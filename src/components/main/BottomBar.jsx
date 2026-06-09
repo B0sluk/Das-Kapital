@@ -11,24 +11,21 @@ export default function BottomBar({
 }) {
   return (
     <div
+      className="bottom-action-bar"
       style={{
-        padding: "12px 12px",
-        paddingBottom: "max(12px, env(safe-area-inset-bottom))",
         borderTop: "1px solid #181818",
         display: "flex",
-        gap: 8,
         flexShrink: 0,
         background: "#0a0a0a",
       }}
     >
       <button
+        className="bottom-action-button bottom-action-skip"
         onClick={onSkipTurn}
         disabled={!canSkipTurn}
         style={{
           flex: 1,
-          padding: "13px",
           fontFamily: FONT_TITLE,
-          fontSize: 14,
           letterSpacing: 1.5,
           background: canSkipTurn ? "#130a0a" : "#141414",
           color: canSkipTurn ? RED : "#444",
@@ -40,11 +37,10 @@ export default function BottomBar({
         SIRANı GEÇ
       </button>
       <button
+        className="bottom-action-button"
         onClick={onMarketCardClick}
         style={{
-          padding: "13px 14px",
           fontFamily: FONT_TITLE,
-          fontSize: 14,
           background: "#0a0d13",
           color: "#2471a3",
           border: "1px solid #2471a330",
@@ -56,11 +52,10 @@ export default function BottomBar({
         🎴 PAZAR
       </button>
       <button
+        className="bottom-action-button"
         onClick={onPriceEditClick}
         style={{
-          padding: "13px 14px",
           fontFamily: FONT_TITLE,
-          fontSize: 14,
           background: "#141414",
           color: "#aaa",
           border: "1px solid #272727",
@@ -72,11 +67,10 @@ export default function BottomBar({
         🏷️ FİYAT
       </button>
       <button
+        className="bottom-action-button"
         onClick={onQuarterChange}
         style={{
-          padding: "13px 14px",
           fontFamily: FONT_TITLE,
-          fontSize: 14,
           letterSpacing: 1,
           background: "#141414",
           color: "#aaa",
@@ -88,11 +82,10 @@ export default function BottomBar({
         Q GEÇ
       </button>
       <button
+        className="bottom-action-button bottom-action-players"
         onClick={onPlayersClick}
         style={{
-          padding: "13px 16px",
           fontFamily: FONT_TITLE,
-          fontSize: 16,
           background: "#141414",
           color: "#aaa",
           border: "1px solid #272727",
